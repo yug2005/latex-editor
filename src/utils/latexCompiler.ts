@@ -72,6 +72,13 @@ export const compileLatex = (latex: string): string => {
           .toc a { text-decoration: none; color: inherit; }
           .section-number { margin-right: 8px; font-weight: bold; }
           
+          /* List styles */
+          ul, ol { margin: 16px 0; padding-left: 30px; }
+          li { margin-bottom: 8px; }
+          ol { list-style-type: decimal; }
+          ol ol { list-style-type: lower-alpha; }
+          ol ol ol { list-style-type: lower-roman; }
+          
           /* Table styles */
           table {
             border-collapse: collapse;
@@ -122,7 +129,8 @@ export const compileLatex = (latex: string): string => {
               inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
               displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
               processEscapes: true,
-              processEnvironments: true
+              processEnvironments: true,
+              packages: ['base', 'ams', 'noerrors', 'noundefined', 'enumerate']
             },
             options: {
               skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
@@ -467,13 +475,38 @@ const generateTableOfContents = (headings: HeadingInfo[]): string => {
  * Process document content, preserving math expressions for MathJax
  */
 const processContent = (content: string): string => {
+  // Pre-process all enumerate environments before paragraph splitting
+  // This ensures they're handled by our HTML converter not MathJax
+  content = content.replace(
+    /\\begin\{enumerate\}([\s\S]*?)\\end\{enumerate\}/g,
+    (match, enumContent) => {
+      // Process list items
+      let htmlList = "<ol>";
+
+      // Split by \item and process each item
+      const items = enumContent
+        .split(/\\item\s+/)
+        .filter((item: string) => item.trim().length > 0)
+        .map((item: string) => `<li>${item.trim()}</li>`);
+
+      htmlList += items.join("\n");
+      htmlList += "</ol>";
+
+      return htmlList;
+    }
+  );
+
   // Basic paragraph handling
   const paragraphs = content.split(/\n\n+/).filter((p) => p.trim());
 
   return paragraphs
     .map((p) => {
       // Skip if it's already a section heading or TOC
-      if (p.trim().startsWith("<h") || p.trim().startsWith('<div class="toc"'))
+      if (
+        p.trim().startsWith("<h") ||
+        p.trim().startsWith('<div class="toc"') ||
+        p.trim().startsWith("<ol>")
+      )
         return p;
 
       // Handle text formatting directly here, before other processing
@@ -496,11 +529,12 @@ const processContent = (content: string): string => {
         .replace(/\\begin\{itemize\}([\s\S]*?)\\end\{itemize\}/g, "<ul>$1</ul>")
         .replace(/\\item\s+/g, "<li>")
         .replace(/\n\\item/g, "</li>\n<li>")
-        .replace(/<li>([\s\S]*?)(?=<li>|<\/ul>)/g, "<li>$1</li>");
+        .replace(/<li>([\s\S]*?)(?=<li>|<\/ul>|<\/ol>)/g, "<li>$1</li>");
 
       // Wrap in paragraph tags if it's not a special environment
       if (
         !processed.startsWith("<ul>") &&
+        !processed.startsWith("<ol>") &&
         !processed.startsWith("$$") &&
         !processed.startsWith("<div") &&
         !processed.startsWith("<table")

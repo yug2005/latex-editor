@@ -1,5 +1,19 @@
 import OpenAI from "openai";
 
+// Define available OpenAI models
+export const AI_MODELS = {
+  "GPT-3.5": "gpt-3.5-turbo",
+  "GPT-4": "gpt-4-turbo",
+  "GPT-4o": "gpt-4o",
+  "GPT-4o-mini": "gpt-4o-mini",
+  "GPT-4.5 Preview": "gpt-4.5-preview",
+  "GPT-o1": "o1",
+  "GPT-o3-mini": "o3-mini",
+} as const;
+
+export type AIModelKey = keyof typeof AI_MODELS;
+export type AIModelValue = (typeof AI_MODELS)[AIModelKey];
+
 // Initialize OpenAI client
 // You'll need to set REACT_APP_OPENAI_API_KEY in your .env file
 const openai = new OpenAI({
@@ -200,6 +214,8 @@ export interface AIQuestionOptions {
   cursorPosition?: number;
   maxTokens?: number;
   temperature?: number;
+  previousMessages?: Array<{ role: "user" | "assistant"; content: string }>;
+  model?: AIModelValue;
 }
 
 /**
@@ -212,6 +228,8 @@ export const askAIQuestion = async (
     question: options.question,
     contentLength: options.documentContent.length,
     cursorPosition: options.cursorPosition,
+    hasHistory: options.previousMessages && options.previousMessages.length > 0,
+    model: options.model || "gpt-4o",
   });
 
   const {
@@ -220,6 +238,8 @@ export const askAIQuestion = async (
     cursorPosition,
     maxTokens = 500,
     temperature = 0.7,
+    previousMessages = [],
+    model = "gpt-4o", // Default to GPT-4o
   } = options;
 
   // Extract the context around cursor position if provided
@@ -252,7 +272,9 @@ Always format your responses using markdown, including proper formatting for cod
   try {
     console.log(
       "[AIService] Making AI question API request with context length:",
-      documentContext.length
+      documentContext.length,
+      "and previous messages:",
+      previousMessages.length
     );
 
     if (!process.env.REACT_APP_OPENAI_API_KEY) {
@@ -262,28 +284,82 @@ Always format your responses using markdown, including proper formatting for cod
       return "⚠️ API key missing";
     }
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: `Document context:\n\n${documentContext}\n\nQuestion: ${question}`,
-        },
-      ],
-      max_tokens: maxTokens,
-      temperature: temperature,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0.3,
+    // Build the messages array for the API call
+    const messages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string;
+    }> = [
+      {
+        role: "system",
+        content: systemPrompt,
+      },
+    ];
+
+    // Add document context as a system message if available
+    if (documentContext.trim()) {
+      messages.push({
+        role: "system",
+        content: `Document context:\n\n${documentContext}`,
+      });
+    }
+
+    // Add previous conversation history
+    if (previousMessages.length > 0) {
+      messages.push(...previousMessages);
+    }
+
+    // Add the current question
+    messages.push({
+      role: "user",
+      content: question,
     });
+
+    // Check if the model is a new reasoning model that uses different parameters
+    const isReasoningModel = model === "o1" || model === "o3-mini";
+
+    // Create the request options based on the model type
+    let requestOptions;
+
+    if (isReasoningModel) {
+      // For o1 and o3-mini models, use minimal parameters since many standard ones aren't supported
+      requestOptions = {
+        model: model,
+        messages: messages,
+        // These models may not support additional parameters, so we're providing just the essentials
+      };
+    } else if (model === "gpt-4.5-preview") {
+      // For preview models, they might have different parameter requirements
+      requestOptions = {
+        model: model,
+        messages: messages,
+        max_tokens: maxTokens,
+        temperature: temperature,
+      };
+    } else {
+      // For standard GPT models
+      requestOptions = {
+        model: model,
+        messages: messages,
+        max_tokens: maxTokens,
+        temperature: temperature,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0.3,
+      };
+    }
+
+    console.log(
+      "[AIService] Request options for model",
+      model,
+      ":",
+      JSON.stringify(requestOptions, null, 2)
+    );
+
+    const response = await openai.chat.completions.create(requestOptions);
 
     const answer = response.choices[0]?.message.content || "";
     console.log(
-      "[AIService] Received answer:",
+      "[AIService] Received answer from model " + model + ":",
       answer.substring(0, 100) + (answer.length > 100 ? "..." : "")
     );
     return answer;

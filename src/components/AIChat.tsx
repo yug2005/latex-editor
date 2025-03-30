@@ -1,5 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
-import { askAIQuestion } from "../services/aiService";
+import {
+  askAIQuestion,
+  AI_MODELS,
+  AIModelKey,
+  AIModelValue,
+} from "../services/aiService";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github.css";
@@ -41,6 +46,7 @@ const AIChat: React.FC<AIChatProps> = ({
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<AIModelValue>("gpt-4o");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -101,6 +107,7 @@ const AIChat: React.FC<AIChatProps> = ({
       editorContentLength: editorContent.length,
       question:
         inputValue.substring(0, 50) + (inputValue.length > 50 ? "..." : ""),
+      model: selectedModel,
     });
 
     // Create a copy of chats
@@ -129,11 +136,21 @@ const AIChat: React.FC<AIChatProps> = ({
     setIsLoading(true);
 
     try {
-      // Get AI response using the new askAIQuestion function
+      // Convert previous messages to the format expected by the API
+      const previousMessages = updatedChats[chatIndex].messages.map(
+        (message) => ({
+          role: message.role,
+          content: message.content,
+        })
+      );
+
+      // Get AI response using the askAIQuestion function with previous messages
       const aiResponse = await askAIQuestion({
         question: inputValue,
         documentContent: editorContent,
         cursorPosition: cursorPosition,
+        previousMessages: previousMessages.slice(0, -1), // Exclude the message we just added
+        model: selectedModel, // Pass the selected model
       });
 
       const assistantMessage: Message = {
@@ -187,6 +204,14 @@ const AIChat: React.FC<AIChatProps> = ({
       .catch((err) => {
         console.error("Failed to copy: ", err);
       });
+  };
+
+  // Helper function to find the model name for display
+  const getModelDisplayName = (modelValue: AIModelValue): string => {
+    const entry = Object.entries(AI_MODELS).find(
+      ([_, value]) => value === modelValue
+    );
+    return entry ? entry[0] : modelValue;
   };
 
   // Helper function to parse message content and identify LaTeX code blocks
@@ -300,64 +325,75 @@ const AIChat: React.FC<AIChatProps> = ({
     );
   };
 
+  // Create a list of models for the dropdown
+  const modelOptions = Object.entries(AI_MODELS).map(([name, value]) => ({
+    name,
+    value,
+  }));
+
   return (
     <div className="flex flex-col h-full border-t border-gray-200">
       <div className="flex items-center justify-between p-2 bg-gray-100 border-b">
-        <div className="flex items-center space-x-2">
-          <h3 className="text-sm font-medium">Chat with AI Assistant</h3>
-          <div className="flex space-x-1">
-            <button
-              onClick={handleNewChat}
-              className="p-1 rounded hover:bg-gray-200 flex items-center text-xs"
-              title="New Chat"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mr-1"
-              >
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              New
-            </button>
-            <button
-              onClick={toggleHistory}
-              className={`p-1 rounded flex items-center text-xs ${
-                isHistoryOpen ? "bg-blue-100" : "hover:bg-gray-200"
-              }`}
-              title="View Chat History"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mr-1"
-              >
-                <polyline points="4 7 4 4 20 4 20 7"></polyline>
-                <line x1="9" y1="20" x2="15" y2="20"></line>
-                <line x1="12" y1="4" x2="12" y2="20"></line>
-              </svg>
-              History
-            </button>
-          </div>
+        <h3 className="text-sm font-medium flex-grow overflow-hidden text-ellipsis whitespace-nowrap">Chat with AI Assistant</h3>
+        <button
+          onClick={handleNewChat}
+          className="p-1 px-2 rounded hover:bg-gray-200 flex items-center text-xs"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="align-middle"
+          >
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+        <button
+          onClick={toggleHistory}
+          className={`p-1 px-2 mr-2 rounded flex items-center text-xs ${
+            isHistoryOpen ? "bg-blue-100" : "hover:bg-gray-200"
+          }`}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="align-middle"
+          >
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </button>
+        <div className="relative">
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value as AIModelValue)}
+            className="text-xs border rounded p-1 bg-white"
+            title="Select AI model"
+          >
+            {modelOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.name}
+              </option>
+            ))}
+          </select>
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-gray-200"
+          className="p-1 px-2 ml-1 rounded hover:bg-gray-200"
           title="Close chat"
         >
           <svg
@@ -370,6 +406,7 @@ const AIChat: React.FC<AIChatProps> = ({
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
+            className="align-middle"
           >
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -431,8 +468,17 @@ const AIChat: React.FC<AIChatProps> = ({
                     {message.role === "assistant" ? "AI" : "U"}
                   </div>
                   <div className="flex-grow min-w-0 overflow-hidden">
-                    <div className="text-xs font-medium mb-1">
-                      {message.role === "assistant" ? "Assistant" : "You"}
+                    <div className="text-xs font-medium mb-1 flex items-center">
+                      {message.role === "assistant" ? (
+                        <>
+                          <span>Assistant</span>
+                          <span className="ml-2 text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-500">
+                            {getModelDisplayName(selectedModel)}
+                          </span>
+                        </>
+                      ) : (
+                        "You"
+                      )}
                     </div>
                     {message.role === "assistant" ? (
                       <div className="text-sm markdown-content prose prose-sm overflow-hidden">
@@ -483,7 +529,12 @@ const AIChat: React.FC<AIChatProps> = ({
                 <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center mr-2">
                   AI
                 </div>
-                <span>Thinking...</span>
+                <div>
+                  <span className="mr-2">Thinking...</span>
+                  <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-500">
+                    {getModelDisplayName(selectedModel)}
+                  </span>
+                </div>
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -496,7 +547,12 @@ const AIChat: React.FC<AIChatProps> = ({
                   <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center mr-2">
                     AI
                   </div>
-                  <span>Thinking...</span>
+                  <div>
+                    <span className="mr-2">Thinking...</span>
+                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-500">
+                      {getModelDisplayName(selectedModel)}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

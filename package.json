@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
@@ -11,17 +12,20 @@
     "@types/node": "^16.18.126",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
+    "electron-is-dev": "^3.0.1",
+    "electron-store": "^10.0.1",
+    "monaco-latex": "^0.0.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-scripts": "5.0.1",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
+  "main": "electron/dist/main.js",
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "rm -rf electron/dist && tsc -p electron/tsconfig.json && concurrently -k \"cross-env BROWSER=none react-scripts start\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron": "rm -rf electron/dist && tsc -p electron/tsconfig.json && electron .",
+    "build": "rm -rf electron/dist && tsc -p electron/tsconfig.json && react-scripts build && electron-builder"
   },
   "eslintConfig": {
     "extends": [
@@ -40,5 +44,15 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^35.1.2",
+    "electron-builder": "^26.0.12",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.0.17",
+    "wait-on": "^7.2.0"
   }
 }

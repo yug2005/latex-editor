@@ -21,17 +21,48 @@ code {
   @apply w-full;
 }
 
+/* Simple and direct approach to code blocks */
 .markdown-content pre {
-  @apply bg-gray-50 border border-gray-200 rounded-md p-2 my-2;
-  max-width: 100%;
   position: relative;
-  overflow-x: auto;
+  margin: 1rem 0;
+  padding: 0;
+  border-radius: 0.375rem;
+  border: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  /* Ensure box-shadow creates a persistent right border */
+  box-shadow: inset -1px 0 0 #e5e7eb;
 }
 
+/* Create a scrollable content area with padding inside the bordered container */
 .markdown-content pre code {
-  @apply w-max;
-  display: inline-block;
+  display: block;
+  padding: 1rem;
+  overflow-x: auto; /* Allow horizontal scrolling */
   white-space: pre;
+  background-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+/* Fix for the right border issue with scrollable content
+   Using both techniques for better cross-browser support */
+.markdown-content pre::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: #e5e7eb;
+  pointer-events: none;
+}
+
+/* Special styling for LaTeX code */
+.markdown-content pre.language-latex,
+.markdown-content pre:has(code.language-latex) {
+  background-color: #f9fafb;
 }
 
 .markdown-content code {

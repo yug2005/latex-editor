@@ -176,6 +176,18 @@ const AIChat: React.FC<AIChatProps> = ({
     setIsHistoryOpen(!isHistoryOpen);
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        // You could add a toast notification here if desired
+        console.log("Content copied to clipboard");
+      })
+      .catch((err) => {
+        console.error("Failed to copy: ", err);
+      });
+  };
+
   return (
     <div className="flex flex-col h-full border-t border-gray-200">
       <div className="flex items-center justify-between p-2 bg-gray-100 border-b">
@@ -315,6 +327,37 @@ const AIChat: React.FC<AIChatProps> = ({
                         <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
                           {message.content}
                         </ReactMarkdown>
+                        <div className="flex justify-end mt-2">
+                          <button
+                            onClick={() => copyToClipboard(message.content)}
+                            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded flex items-center"
+                            title="Copy response"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="mr-1"
+                            >
+                              <rect
+                                x="9"
+                                y="9"
+                                width="13"
+                                height="13"
+                                rx="2"
+                                ry="2"
+                              ></rect>
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            Copy
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <div className="text-sm whitespace-pre-wrap">

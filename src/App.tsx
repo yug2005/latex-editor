@@ -22,7 +22,7 @@ const App = () => {
   const [initialContent, setInitialContent] =
     useState<string>(EXAMPLE_DOCUMENT);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
-  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+  const [isChatOpen, setIsChatOpen] = useState<boolean>(true);
   const [cursorPosition, setCursorPosition] = useState<number>(0);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 

@@ -33,6 +33,25 @@ $$e^{i\\pi} + 1 = 0$$
 
 This connects five fundamental constants: $e$, $i$, $\\pi$, $1$, and $0$.
 
+
+\\section{Tables}
+Here is a simple table with random columns and values:
+
+\\begin{table}[h]
+    \\centering
+    \\begin{tabular}{|l|c|r|}
+        \\hline
+        Column 1 & Column 2 & Column 3 \\\\ \\hline
+        A        & B        & C        \\\\ \\hline
+        1.23     & 4.56     & 7.89     \\\\ \\hline
+        X        & Y        & Z        \\\\ \\hline
+        W        & 3.14     & 2.71     \\\\ \\hline
+        New & Data & Entry \\\\ \\hline
+    \\end{tabular}
+    \\caption{A simple table with random data.}
+    \\label{tab:random}
+\\end{table}
+
 \\end{document}`;
 
 // Default starter document (simplified version)

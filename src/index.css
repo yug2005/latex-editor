@@ -136,3 +136,103 @@ code {
 .prose {
   @apply text-gray-800;
 }
+
+/* Custom styles for LaTeX editor in read-only mode */
+.latex-editor-readonly .monaco-editor .overflow-guard {
+  border-radius: 0.25rem;
+  background-color: #f9fafb !important;
+}
+
+.latex-editor-readonly .monaco-editor {
+  border-radius: 0.25rem;
+}
+
+.latex-editor-readonly .monaco-editor .view-line {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace !important;
+}
+
+.latex-editor-readonly .monaco-editor .view-overlays .current-line {
+  border: none !important;
+}
+
+.latex-editor-readonly .monaco-editor .margin {
+  background-color: #f9fafb !important;
+}
+
+/* Custom scrollbar styling for code blocks */
+.latex-editor-readonly
+  .monaco-editor
+  .monaco-scrollable-element
+  > .scrollbar
+  > .slider {
+  background: rgba(100, 100, 100, 0.4) !important;
+}
+
+.latex-editor-readonly
+  .monaco-editor
+  .monaco-scrollable-element
+  > .scrollbar.horizontal {
+  height: 5px !important;
+}
+
+/* Ensure the editor container properly shows horizontal scrolling */
+.latex-editor-readonly {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.latex-editor-readonly .monaco-editor .overflow-guard {
+  overflow-x: auto !important;
+  overflow-y: hidden !important; /* Hide vertical scrollbar when not needed */
+}
+
+/* Fixes for editor padding and content display */
+.latex-editor-readonly .monaco-editor .lines-content {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Eliminate all internal padding in monaco editor */
+.latex-editor-readonly .monaco-editor .monaco-scrollable-element {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Tighter spacing for the editor content */
+.latex-editor-readonly .monaco-editor .view-lines {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Ensure line height is consistent for better measurement */
+.latex-editor-readonly .monaco-editor .view-line {
+  line-height: 17px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Remove bottom padding from editor container */
+.latex-editor-readonly .monaco-editor,
+.latex-editor-readonly .monaco-editor-background,
+.latex-editor-readonly .monaco-editor .inputarea {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Strict container sizing */
+.latex-editor-readonly .monaco-editor,
+.latex-editor-readonly .monaco-editor-background {
+  overflow: hidden !important;
+}
+
+/* Fix for the last line extra space */
+.latex-editor-readonly .monaco-editor .view-lines:after {
+  display: none !important;
+}
+
+/* Improve cursor visibility in read-only mode */
+.latex-editor-readonly .monaco-editor .cursor {
+  display: none !important;
+}

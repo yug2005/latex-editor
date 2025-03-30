@@ -71,6 +71,50 @@ export const compileLatex = (latex: string): string => {
           .toc-h3 { margin-left: 40px; margin-bottom: 6px; }
           .toc a { text-decoration: none; color: inherit; }
           .section-number { margin-right: 8px; font-weight: bold; }
+          
+          /* Table styles */
+          table {
+            border-collapse: collapse;
+            width: 100%;
+          }
+          table.centered {
+            margin-left: auto;
+            margin-right: auto;
+          }
+          td {
+            padding: 8px;
+            border: 1px solid #ddd;
+          }
+          tr.hline {
+            border-bottom: 2px solid #000;
+            height: 1px;
+          }
+          .table-container {
+            margin: 20px 0;
+            overflow-x: auto;
+          }
+          .table-caption {
+            text-align: center;
+            font-style: italic;
+            margin-top: 8px;
+          }
+          /* Table placement styles */
+          .table-container[data-placement="h"] {
+            /* 'here' placement */
+            position: relative;
+          }
+          .table-container[data-placement="t"] {
+            /* 'top' placement */
+            margin-top: 0;
+          }
+          .table-container[data-placement="b"] {
+            /* 'bottom' placement */
+            margin-top: 30px;
+          }
+          .table-container[data-placement="p"] {
+            /* 'page' placement - a bit harder to simulate */
+            page-break-inside: avoid;
+          }
         </style>
         <script>
           window.MathJax = {
@@ -435,6 +479,9 @@ const processContent = (content: string): string => {
       // Handle text formatting directly here, before other processing
       let processed = p;
 
+      // Process tables before other environments
+      processed = processLatexTables(processed);
+
       // Let MathJax handle math expressions
       // We do simple environment conversions
       processed = processed
@@ -455,7 +502,8 @@ const processContent = (content: string): string => {
       if (
         !processed.startsWith("<ul>") &&
         !processed.startsWith("$$") &&
-        !processed.startsWith("<div")
+        !processed.startsWith("<div") &&
+        !processed.startsWith("<table")
       ) {
         processed = `<p>${processed}</p>`;
       }
@@ -463,6 +511,164 @@ const processContent = (content: string): string => {
       return processed;
     })
     .join("\n");
+};
+
+/**
+ * Process LaTeX tables to HTML
+ */
+const processLatexTables = (content: string): string => {
+  // Replace table environment with optional placement parameter [h], [t], etc.
+  content = content.replace(
+    /\\begin\{table\}(?:\[(.*?)\])?([\s\S]*?)\\end\{table\}/g,
+    (match, placement, tableContent) => {
+      let caption = "";
+      let label = "";
+      let centered = false;
+      let result = "<div class='table-container'";
+
+      // Add placement class if specified
+      if (placement) {
+        result += ` data-placement="${placement}"`;
+      }
+      result += ">";
+
+      // Check for centering command
+      if (tableContent.includes("\\centering")) {
+        centered = true;
+        // Remove centering command from tableContent to avoid processing it again
+        tableContent = tableContent.replace(/\\centering/g, "");
+      }
+
+      // Extract caption if present
+      const captionMatch = tableContent.match(/\\caption\{(.*?)\}/);
+      if (captionMatch) {
+        caption = captionMatch[1];
+        // Remove caption from tableContent to avoid processing it again
+        tableContent = tableContent.replace(/\\caption\{(.*?)\}/g, "");
+      }
+
+      // Extract label if present
+      const labelMatch = tableContent.match(/\\label\{(.*?)\}/);
+      if (labelMatch) {
+        label = labelMatch[1];
+        // Remove label from tableContent to avoid processing it again
+        tableContent = tableContent.replace(/\\label\{(.*?)\}/g, "");
+      }
+
+      // Process the tabular environment within the table
+      let processedTable = processTabularEnvironment(tableContent);
+
+      // Apply centering if specified
+      if (centered) {
+        // If the result already contains a table tag, add the class to it
+        if (processedTable.includes("<table")) {
+          processedTable = processedTable.replace(
+            "<table",
+            "<table class='centered'"
+          );
+        }
+      }
+
+      result += processedTable;
+
+      // Add caption after the table if present
+      if (caption) {
+        const id = label ? ` id="${label}"` : "";
+        result += `<div class="table-caption"${id}>${caption}</div>`;
+      }
+
+      result += "</div>";
+      return result;
+    }
+  );
+
+  // Process standalone tabular environments (not within a table environment)
+  content = processTabularEnvironment(content);
+
+  return content;
+};
+
+/**
+ * Parse LaTeX column specification to determine number of columns and alignments
+ */
+const parseColumnSpec = (
+  spec: string
+): { count: number; alignments: string[] } => {
+  // Extract column specifiers (l, c, r, p, etc.)
+  const alignmentMatches = spec.match(/[lcr]|p\{.*?\}/g) || [];
+  const count = alignmentMatches.length || 1; // Default to 1 column if parsing fails
+
+  // Map LaTeX alignment to CSS text-align
+  const alignments = alignmentMatches.map((spec) => {
+    if (spec === "l") return "left";
+    if (spec === "c") return "center";
+    if (spec === "r") return "right";
+    if (spec.startsWith("p{")) return "left"; // p{width} is paragraph, typically left-aligned
+    return "left"; // Default to left alignment for unknown specifiers
+  });
+
+  return { count, alignments };
+};
+
+/**
+ * Process the tabular environment to HTML table
+ */
+const processTabularEnvironment = (content: string): string => {
+  return content.replace(
+    /\\begin\{tabular\}\{(.*?)\}([\s\S]*?)\\end\{tabular\}/g,
+    (match, columnSpec, tableContent) => {
+      // Parse column specification
+      const { count, alignments } = parseColumnSpec(columnSpec);
+
+      // Process table content
+      let tableHtml = "<table>";
+
+      // Split into rows
+      const rows = tableContent.split(/\\\\/).map((row: string) => row.trim());
+
+      // Process each row
+      rows.forEach((row: string) => {
+        if (row === "") return;
+
+        // Handle \hline
+        if (row === "\\hline") {
+          tableHtml += "<tr class='hline'></tr>";
+          return;
+        }
+
+        // Remove leading \hline if present
+        let rowContent = row;
+        if (rowContent.startsWith("\\hline")) {
+          tableHtml += "<tr class='hline'></tr>";
+          rowContent = rowContent.substring(6).trim();
+        }
+
+        // Skip empty rows
+        if (!rowContent) return;
+
+        // Process row content
+        tableHtml += "<tr>";
+        const cells = rowContent.split(/&/).map((cell: string) => cell.trim());
+
+        cells.forEach((cell: string, index: number) => {
+          // Apply the correct alignment for this cell based on column spec
+          const align = index < alignments.length ? alignments[index] : "left";
+          tableHtml += `<td style="text-align: ${align}">${cell}</td>`;
+        });
+
+        // If we have fewer cells than columns, add empty cells
+        for (let i = cells.length; i < count; i++) {
+          const align = i < alignments.length ? alignments[i] : "left";
+          tableHtml += `<td style="text-align: ${align}"></td>`;
+        }
+
+        tableHtml += "</tr>";
+      });
+
+      tableHtml += "</table>";
+      return tableHtml;
+    }
+  );
 };
 
 export default compileLatex;

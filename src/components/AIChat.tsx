@@ -3,6 +3,7 @@ import { askAIQuestion } from "../services/aiService";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github.css";
+import LatexEditor from "./LatexEditor";
 
 interface Message {
   id: string;
@@ -188,6 +189,117 @@ const AIChat: React.FC<AIChatProps> = ({
       });
   };
 
+  // Helper function to parse message content and identify LaTeX code blocks
+  const renderMessageContent = (content: string) => {
+    const codeBlockRegex = /```latex\s*([\s\S]*?)```/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      // Add text before the code block
+      if (match.index > lastIndex) {
+        parts.push({
+          type: "text",
+          content: content.substring(lastIndex, match.index),
+        });
+      }
+
+      // Add the LaTeX code block
+      parts.push({
+        type: "latex",
+        content: match[1],
+      });
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add any remaining text
+    if (lastIndex < content.length) {
+      parts.push({
+        type: "text",
+        content: content.substring(lastIndex),
+      });
+    }
+
+    return (
+      <>
+        {parts.map((part, index) => {
+          if (part.type === "text") {
+            return (
+              <ReactMarkdown key={index} rehypePlugins={[rehypeHighlight]}>
+                {part.content}
+              </ReactMarkdown>
+            );
+          } else {
+            return (
+              <div key={index} className="my-2 border rounded overflow-hidden">
+                <div className="flex items-center bg-gray-100 px-2 py-1 border-b">
+                  <span className="text-xs font-medium text-gray-500">
+                    LaTeX Code
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard(part.content)}
+                    className="ml-auto text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-0.5 rounded flex items-center"
+                    title="Copy LaTeX code"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="mr-1"
+                    >
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        ry="2"
+                      ></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy
+                  </button>
+                </div>
+                <div className="p-2 pb-0">
+                  <LatexEditor
+                    value={part.content}
+                    onChange={() => {}} // No-op since read-only
+                    height="auto"
+                    readOnly={true}
+                    showToolbar={false}
+                    wordWrap={false}
+                    fontSize={11}
+                    onEditorDidMount={(editor) => {
+                      // Get accurate line count
+                      const lineCount = part.content.split("\n").length;
+                      const lineHeight = 18;
+                      const initialHeight = lineCount * lineHeight;
+                      // Set initial height
+                      editor.getContainerDomNode().style.height = `${initialHeight}px`;
+                      editor.layout();
+                      // Add a small delay to ensure layout is complete
+                      setTimeout(() => {
+                        editor.layout();
+                      }, 100);
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          }
+        })}
+      </>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full border-t border-gray-200">
       <div className="flex items-center justify-between p-2 bg-gray-100 border-b">
@@ -324,9 +436,7 @@ const AIChat: React.FC<AIChatProps> = ({
                     </div>
                     {message.role === "assistant" ? (
                       <div className="text-sm markdown-content prose prose-sm overflow-hidden">
-                        <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
-                          {message.content}
-                        </ReactMarkdown>
+                        {renderMessageContent(message.content)}
                         <div className="flex justify-end mt-2">
                           <button
                             onClick={() => copyToClipboard(message.content)}
@@ -410,9 +520,9 @@ const AIChat: React.FC<AIChatProps> = ({
                   ? "Ask any question about your document..."
                   : "Ask a follow-up question..."
               }
-              className="flex-grow p-2 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 overflow-auto"
+              className="flex-grow p-2 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 overflow-auto text-sm"
               rows={1}
-              style={{ minHeight: "75px" }}
+              style={{ minHeight: "60px" }}
             />
             <button
               onClick={sendMessage}

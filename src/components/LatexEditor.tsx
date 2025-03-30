@@ -104,12 +104,6 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
             },
           }}
         />
-        {editorInstance && (
-          <div className="absolute bottom-2 right-2 text-xs bg-gray-800 text-white opacity-70 px-2 py-1 rounded flex items-center pointer-events-none">
-            <div className="w-2 h-2 rounded-full bg-green-500 mr-1 animate-pulse"></div>
-            AI suggestions enabled
-          </div>
-        )}
       </div>
       {aiEnabled && <InlineAISuggestion editor={editorInstance} />}
     </div>

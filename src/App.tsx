@@ -58,7 +58,7 @@ Hello, LaTeX!
         <LatexEditor
           value={content}
           onChange={setContent}
-          height="calc(100vh - 40px)"
+          height="calc(90vh)"
         />
       </div>
     </div>

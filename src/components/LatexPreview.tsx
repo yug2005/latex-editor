@@ -39,6 +39,51 @@ const LatexPreview: React.FC<LatexPreviewProps> = ({ content }) => {
     return () => clearTimeout(timeoutId);
   }, [content]);
 
+  // Handle link clicks within the iframe
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !compiledHtml) return;
+
+    const handleLoad = () => {
+      try {
+        const iframeDocument =
+          iframe.contentDocument || iframe.contentWindow?.document;
+        if (!iframeDocument) return;
+
+        // Add click event listener to all links in the iframe
+        const links = iframeDocument.querySelectorAll("a");
+        links.forEach((link) => {
+          link.addEventListener("click", (e) => {
+            const href = link.getAttribute("href");
+            if (!href) return;
+
+            // Check if the link is an internal anchor
+            if (href.startsWith("#")) {
+              e.preventDefault();
+              // Navigate to the anchor within the iframe
+              const targetElement = iframeDocument.querySelector(href);
+              if (targetElement) {
+                targetElement.scrollIntoView({ behavior: "smooth" });
+              }
+            } else {
+              // External link - open in a new tab
+              e.preventDefault();
+              window.open(href, "_blank");
+            }
+          });
+        });
+      } catch (err) {
+        console.error("Error setting up iframe link handlers:", err);
+      }
+    };
+
+    iframe.addEventListener("load", handleLoad);
+
+    return () => {
+      iframe.removeEventListener("load", handleLoad);
+    };
+  }, [compiledHtml]);
+
   return (
     <div className="h-full flex flex-col">
       <div className="bg-gray-100 px-2 h-8 text-sm font-medium border-b flex justify-between items-center">

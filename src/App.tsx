@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import LatexEditor from "./components/LatexEditor";
 import LatexPreview from "./components/LatexPreview";
 import { getFilename } from "./utils/generalUtils";
+import AIChat from "./components/AIChat";
 import { EXAMPLE_DOCUMENT, DEFAULT_DOCUMENT } from "./assets/exampleDocument";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import * as monaco from "monaco-editor";
 
 declare global {
   interface Window {
@@ -20,6 +22,9 @@ const App = () => {
   const [initialContent, setInitialContent] =
     useState<string>(EXAMPLE_DOCUMENT);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+  const [cursorPosition, setCursorPosition] = useState<number>(0);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   // Check for unsaved changes when content changes
   useEffect(() => {
@@ -62,6 +67,25 @@ const App = () => {
     setFilePath(null);
   };
 
+  const toggleChat = () => {
+    setIsChatOpen(!isChatOpen);
+  };
+
+  const handleEditorDidMount = (
+    editor: monaco.editor.IStandaloneCodeEditor
+  ) => {
+    editorRef.current = editor;
+
+    // Set up cursor position tracking
+    editor.onDidChangeCursorPosition((e) => {
+      const model = editor.getModel();
+      if (model) {
+        const offset = model.getOffsetAt(e.position);
+        setCursorPosition(offset);
+      }
+    });
+  };
+
   // Extract filename from path
   const fileName = filePath ? getFilename(filePath) : "Untitled.tex";
   const displayFileName = hasUnsavedChanges ? `${fileName} *` : fileName;
@@ -72,6 +96,17 @@ const App = () => {
       <PanelResizeHandle className="w-1 bg-gray-300 hover:bg-blue-500 relative">
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="h-16 w-1 rounded-full bg-gray-400"></div>
+        </div>
+      </PanelResizeHandle>
+    );
+  };
+
+  // Vertical resize handle component
+  const VerticalResizeHandle = () => {
+    return (
+      <PanelResizeHandle className="h-1 bg-gray-300 hover:bg-blue-500 relative">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-16 h-1 rounded-full bg-gray-400"></div>
         </div>
       </PanelResizeHandle>
     );
@@ -99,22 +134,79 @@ const App = () => {
           >
             Save
           </button>
+          <button
+            className={`${
+              isChatOpen
+                ? "bg-indigo-500 hover:bg-indigo-700"
+                : "bg-gray-500 hover:bg-gray-700"
+            } text-white font-bold py-1 px-3 rounded text-sm flex items-center`}
+            onClick={toggleChat}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="mr-1"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Chat
+          </button>
         </div>
         <div className="text-sm truncate max-w-md">{displayFileName}</div>
         <div className="text-xs text-gray-300">AI-powered LaTeX Editor</div>
       </div>
 
-      <div className="flex-grow" style={{ height: "calc(100vh - 40px)" }}>
-        <PanelGroup direction="horizontal">
+      <div
+        className="flex-grow overflow-hidden"
+        style={{ height: "calc(100vh - 40px)" }}
+      >
+        <PanelGroup direction="horizontal" className="h-full">
           <Panel defaultSize={50} minSize={25}>
-            <LatexEditor
-              value={content}
-              onChange={setContent}
-              height="calc(100vh - 40px)"
-            />
+            <PanelGroup direction="vertical" className="h-full">
+              <Panel
+                defaultSize={isChatOpen ? 70 : 100}
+                minSize={30}
+                className="overflow-hidden"
+              >
+                <div className="h-full flex flex-col">
+                  <LatexEditor
+                    value={content}
+                    onChange={setContent}
+                    height="100%"
+                    onEditorDidMount={handleEditorDidMount}
+                  />
+                </div>
+              </Panel>
+
+              {isChatOpen && (
+                <>
+                  <VerticalResizeHandle />
+                  <Panel
+                    defaultSize={30}
+                    minSize={25}
+                    className="overflow-hidden"
+                  >
+                    <AIChat
+                      onClose={toggleChat}
+                      editorContent={content}
+                      cursorPosition={cursorPosition}
+                    />
+                  </Panel>
+                </>
+              )}
+            </PanelGroup>
           </Panel>
+
           <ResizeHandle />
-          <Panel minSize={25}>
+
+          <Panel minSize={25} className="overflow-hidden">
             <LatexPreview content={content} />
           </Panel>
         </PanelGroup>

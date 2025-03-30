@@ -8,9 +8,15 @@ interface LatexEditorProps {
   value: string;
   onChange: (value: string) => void;
   height?: string;
+  onEditorDidMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
-const LatexEditor: React.FC<LatexEditorProps> = ({ value, onChange }) => {
+const LatexEditor: React.FC<LatexEditorProps> = ({
+  value,
+  onChange,
+  height,
+  onEditorDidMount,
+}) => {
   const [editorInstance, setEditorInstance] =
     useState<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [aiEnabled, setAiEnabled] = useState<boolean>(true);
@@ -29,8 +35,13 @@ const LatexEditor: React.FC<LatexEditorProps> = ({ value, onChange }) => {
         tabSize: 4,
         insertSpaces: true,
       });
+
+      // Call the parent's onEditorDidMount if provided
+      if (onEditorDidMount) {
+        onEditorDidMount(editor);
+      }
     },
-    []
+    [onEditorDidMount]
   );
 
   const toggleAI = () => {
@@ -38,8 +49,11 @@ const LatexEditor: React.FC<LatexEditorProps> = ({ value, onChange }) => {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center p-1 bg-gray-100 border-b h-8 overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div
+        className="flex items-center p-1 bg-gray-100 border-b flex-shrink-0"
+        style={{ height: "32px" }}
+      >
         <button
           className={`px-2 py-1 text-xs rounded flex-shrink-0 flex items-center ${
             aiEnabled ? "bg-blue-500 text-white" : "bg-gray-300 text-gray-700"
@@ -77,9 +91,9 @@ const LatexEditor: React.FC<LatexEditorProps> = ({ value, onChange }) => {
           </span>
         </div>
       </div>
-      <div className="flex-grow relative">
+      <div className="flex-grow relative min-h-0 h-0">
         <Editor
-          height={"100%"}
+          height="100%"
           defaultLanguage="latex"
           theme="latexTheme"
           value={value}

@@ -193,3 +193,104 @@ ${contextBeforeCursor}[CURSOR]${contextAfterCursor}`,
     }`;
   }
 };
+
+export interface AIQuestionOptions {
+  question: string;
+  documentContent: string;
+  cursorPosition?: number;
+  maxTokens?: number;
+  temperature?: number;
+}
+
+/**
+ * Ask AI a direct question with document context
+ */
+export const askAIQuestion = async (
+  options: AIQuestionOptions
+): Promise<string> => {
+  console.log("[AIService] askAIQuestion called with options:", {
+    question: options.question,
+    contentLength: options.documentContent.length,
+    cursorPosition: options.cursorPosition,
+  });
+
+  const {
+    question,
+    documentContent,
+    cursorPosition,
+    maxTokens = 500,
+    temperature = 0.7,
+  } = options;
+
+  // Extract the context around cursor position if provided
+  let documentContext = documentContent;
+  if (cursorPosition !== undefined) {
+    // Get text before and after cursor to provide focused context
+    const startPosition = Math.max(0, cursorPosition - 2000);
+    const endPosition = Math.min(documentContent.length, cursorPosition + 2000);
+    documentContext = documentContent.substring(startPosition, endPosition);
+
+    // Log detailed cursor position information
+    console.log("[AIService] Using cursor context:", {
+      documentLength: documentContent.length,
+      cursorPosition,
+      contextWindowStart: startPosition,
+      contextWindowEnd: endPosition,
+      contextLength: documentContext.length,
+      textAtCursor: documentContent.substring(
+        Math.max(0, cursorPosition - 20),
+        Math.min(documentContent.length, cursorPosition + 20)
+      ),
+    });
+  }
+
+  const systemPrompt = `You are a helpful LaTeX and document editing assistant.
+Answer questions about LaTeX, document structure, content, or provide suggestions based on the document context.
+Be concise, accurate, and directly address the user's question.
+Always format your responses using markdown, including proper formatting for code blocks, headings, lists, and other elements.`;
+
+  try {
+    console.log(
+      "[AIService] Making AI question API request with context length:",
+      documentContext.length
+    );
+
+    if (!process.env.REACT_APP_OPENAI_API_KEY) {
+      console.error(
+        "[AIService] No API key found. Please set REACT_APP_OPENAI_API_KEY in .env file"
+      );
+      return "⚠️ API key missing";
+    }
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+        {
+          role: "user",
+          content: `Document context:\n\n${documentContext}\n\nQuestion: ${question}`,
+        },
+      ],
+      max_tokens: maxTokens,
+      temperature: temperature,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0.3,
+    });
+
+    const answer = response.choices[0]?.message.content || "";
+    console.log(
+      "[AIService] Received answer:",
+      answer.substring(0, 100) + (answer.length > 100 ? "..." : "")
+    );
+    return answer;
+  } catch (error) {
+    console.error("[AIService] Error getting AI answer:", error);
+    return `⚠️ Error: ${
+      error instanceof Error ? error.message : "Unknown error"
+    }`;
+  }
+};

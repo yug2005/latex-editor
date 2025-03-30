@@ -16,7 +16,6 @@ export const initializeMonaco = async () => {
   if (isMonacoInitialized) return;
   isMonacoInitialized = true;
 
-  console.log("Initializing Monaco");
   // Wait for Monaco to be loaded
   await loader.init().then((monaco) => {
     // Define custom theme colors for LaTeX

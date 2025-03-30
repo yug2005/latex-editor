@@ -31,10 +31,18 @@ Hello, LaTeX!
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <div style={{ padding: "10px", background: "#aeaeae", color: "white" }}>
-        <button onClick={openFile}>Open</button>
-        <button onClick={saveFile} style={{ marginLeft: "10px" }}>
+    <div className="flex flex-col h-screen">
+      <div className="p-4 bg-gray-800 text-white">
+        <button
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          onClick={openFile}
+        >
+          Open
+        </button>
+        <button
+          className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded ml-2"
+          onClick={saveFile}
+        >
           Save
         </button>
       </div>

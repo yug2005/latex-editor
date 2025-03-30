@@ -13,7 +13,6 @@ interface LatexEditorProps {
 const LatexEditor: React.FC<LatexEditorProps> = ({
   value,
   onChange,
-  height = "90vh",
 }) => {
   const [editorInstance, setEditorInstance] =
     useState<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -43,7 +42,7 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center p-1 bg-gray-100 border-b">
+      <div className="flex items-center p-1 bg-gray-100 border-b h-8">
         <button
           className={`px-2 py-1 text-xs rounded flex items-center ${
             aiEnabled ? "bg-blue-500 text-white" : "bg-gray-300 text-gray-700"
@@ -78,7 +77,7 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
       </div>
       <div className="flex-grow relative">
         <Editor
-          height={height}
+          height={"100%"}
           defaultLanguage="latex"
           theme="latexTheme"
           value={value}

@@ -1,0 +1,468 @@
+/**
+ * LaTeX compiler with MathJax integration
+ * Uses a hybrid approach with basic LaTeX parsing and MathJax for rendering
+ */
+
+/**
+ * A consistent section numbering system for LaTeX processing
+ */
+interface HeadingInfo {
+  text: string;
+  level: number;
+  number: string;
+  index: number; // Position in the original document
+}
+
+/**
+ * Process a LaTeX document to HTML with MathJax
+ */
+export const compileLatex = (latex: string): string => {
+  // Basic preprocessing - strip document class and document environment
+  let content = latex
+    .replace(/\\documentclass\{.*?\}/g, "")
+    .replace(/\\begin\{document\}/g, "")
+    .replace(/\\end\{document\}/g, "")
+    .trim();
+
+  // Process text formatting before other processing
+  content = processLaTeXCommands(content);
+
+  // First analyze document structure to get consistent numbering
+  const headings = analyzeDocumentStructure(content);
+
+  // Process sections using the analyzed structure
+  content = processSectionsWithStructure(content, headings);
+
+  // Process special commands (like \today and \tableofcontents)
+  content = processSpecialCommands(content, headings);
+
+  // For simplicity, we use a hybrid approach:
+  // 1. Use our basic parser for document structure
+  // 2. Load MathJax in the iframe for math rendering
+
+  return `
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <script type="text/javascript" id="MathJax-script" async
+          src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+        </script>
+        <style>
+          body {
+            font-family: 'Times New Roman', Times, serif;
+            line-height: 1.5;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          h1 { font-size: 24px; margin-top: 24px; margin-bottom: 16px; }
+          h2 { font-size: 20px; margin-top: 20px; margin-bottom: 14px; }
+          h3 { font-size: 18px; margin-top: 18px; margin-bottom: 12px; }
+          p { margin-bottom: 16px; }
+          strong, .bold { font-weight: bold; }
+          em, .italic { font-style: italic; }
+          .mjx-chtml { display: inline-block; }
+          .mjx-math { text-align: center; margin: 1em 0; }
+          .toc { margin: 20px 0; }
+          .toc h2 { margin-top: 0; margin-bottom: 16px; }
+          .toc ul { list-style-type: none; margin: 0; padding: 0; }
+          .toc-h1 { margin-left: 0; margin-bottom: 8px; }
+          .toc-h2 { margin-left: 20px; margin-bottom: 6px; }
+          .toc-h3 { margin-left: 40px; margin-bottom: 6px; }
+          .toc a { text-decoration: none; color: inherit; }
+          .section-number { margin-right: 8px; font-weight: bold; }
+        </style>
+        <script>
+          window.MathJax = {
+            tex: {
+              inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+              displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+              processEscapes: true,
+              processEnvironments: true
+            },
+            options: {
+              skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+              ignoreHtmlClass: 'tex2jax_ignore',
+              processHtmlClass: 'tex2jax_process'
+            }
+          };
+        </script>
+      </head>
+      <body>
+        ${processContent(content)}
+      </body>
+    </html>
+  `;
+};
+
+/**
+ * Process standard LaTeX commands
+ */
+const processLaTeXCommands = (content: string): string => {
+  // Process text formatting commands directly
+  for (let i = 0; i < 5; i++) {
+    // Do multiple passes to handle nesting
+    // Replace \textbf{...} with <strong>...</strong>
+    content = content.replace(/\\textbf\{([^{}]*)\}/g, "<strong>$1</strong>");
+
+    // Replace \textit{...} with <em>...</em>
+    content = content.replace(/\\textit\{([^{}]*)\}/g, "<em>$1</em>");
+
+    // Replace \emph{...} with <em>...</em>
+    content = content.replace(/\\emph\{([^{}]*)\}/g, "<em>$1</em>");
+  }
+
+  return content;
+};
+
+/**
+ * Analyze document structure to determine section, subsection, and subsubsection
+ * numbering consistently before processing
+ */
+const analyzeDocumentStructure = (content: string): HeadingInfo[] => {
+  const headings: HeadingInfo[] = [];
+
+  // First pass: Find all heading elements and their positions
+  // Use regular expressions with exec() instead of matchAll()
+  const sectionRegex = /\\section\{(.*?)\}/g;
+  const subsectionRegex = /\\subsection\{(.*?)\}/g;
+  const subsubsectionRegex = /\\subsubsection\{(.*?)\}/g;
+
+  // Process sections
+  let sectionMatch;
+  while ((sectionMatch = sectionRegex.exec(content)) !== null) {
+    headings.push({
+      text: sectionMatch[1],
+      level: 1,
+      number: "", // Will be calculated in second pass
+      index: sectionMatch.index || 0,
+    });
+  }
+
+  // Process subsections
+  let subsectionMatch;
+  while ((subsectionMatch = subsectionRegex.exec(content)) !== null) {
+    headings.push({
+      text: subsectionMatch[1],
+      level: 2,
+      number: "", // Will be calculated in second pass
+      index: subsectionMatch.index || 0,
+    });
+  }
+
+  // Process subsubsections
+  let subsubsectionMatch;
+  while ((subsubsectionMatch = subsubsectionRegex.exec(content)) !== null) {
+    headings.push({
+      text: subsubsectionMatch[1],
+      level: 3,
+      number: "", // Will be calculated in second pass
+      index: subsubsectionMatch.index || 0,
+    });
+  }
+
+  // Sort all headings by their position in the document
+  headings.sort((a, b) => a.index - b.index);
+  console.log(headings);
+
+  // Second pass: Calculate proper section numbers
+  let currentSectionNumber = 0;
+  let currentSubsectionNumber = 0;
+  let currentSubsubsectionNumber = 0;
+
+  headings.forEach((heading, i) => {
+    if (heading.level === 1) {
+      // Section
+      currentSectionNumber++;
+      currentSubsectionNumber = 0;
+      currentSubsubsectionNumber = 0;
+      heading.number = `${currentSectionNumber}`;
+    } else if (heading.level === 2) {
+      // Subsection - find parent section number
+      const parentSectionIndex = findLastIndexBefore(headings, i, 1);
+
+      if (parentSectionIndex >= 0) {
+        // Parent section exists, use its number
+        const parentSectionNumber = headings[parentSectionIndex].number;
+
+        // Check if this is a new subsection of the current section or continuing
+        // from a previous subsection of the same parent
+        if (i > 0 && headings[i - 1].level === 2) {
+          const prevParentSectionIndex = findLastIndexBefore(
+            headings,
+            i - 1,
+            1
+          );
+          if (prevParentSectionIndex === parentSectionIndex) {
+            // Same parent section as previous subsection
+            currentSubsectionNumber++;
+          } else {
+            // Different parent section
+            currentSubsectionNumber = 1;
+          }
+        } else {
+          // First subsection under this section
+          currentSubsectionNumber = 1;
+        }
+
+        heading.number = `${parentSectionNumber}.${currentSubsectionNumber}`;
+      } else {
+        // No parent section found, assume section 1
+        currentSubsectionNumber++;
+        heading.number = `1.${currentSubsectionNumber}`;
+      }
+
+      currentSubsubsectionNumber = 0;
+    } else if (heading.level === 3) {
+      // Subsubsection - find parent subsection number
+      const parentSubsectionIndex = findLastIndexBefore(headings, i, 2);
+
+      if (parentSubsectionIndex >= 0) {
+        // Parent subsection exists
+        const parentSubsectionNumber = headings[parentSubsectionIndex].number;
+
+        // Check if this is a new subsubsection or continuing from previous
+        if (i > 0 && headings[i - 1].level === 3) {
+          const prevParentSubsectionIndex = findLastIndexBefore(
+            headings,
+            i - 1,
+            2
+          );
+          if (prevParentSubsectionIndex === parentSubsectionIndex) {
+            // Same parent subsection
+            currentSubsubsectionNumber++;
+          } else {
+            // Different parent subsection
+            currentSubsubsectionNumber = 1;
+          }
+        } else {
+          // First subsubsection under this subsection
+          currentSubsubsectionNumber = 1;
+        }
+
+        heading.number = `${parentSubsectionNumber}.${currentSubsubsectionNumber}`;
+      } else {
+        // No parent subsection found - try to find a parent section
+        const parentSectionIndex = findLastIndexBefore(headings, i, 1);
+
+        if (parentSectionIndex >= 0) {
+          // Parent section exists, but no subsection - assume subsection 1
+          const parentSectionNumber = headings[parentSectionIndex].number;
+          currentSubsubsectionNumber++;
+          heading.number = `${parentSectionNumber}.1.${currentSubsubsectionNumber}`;
+        } else {
+          // No parent section found, assume section 1, subsection 1
+          currentSubsubsectionNumber++;
+          heading.number = `1.1.${currentSubsubsectionNumber}`;
+        }
+      }
+    }
+  });
+
+  return headings;
+};
+
+/**
+ * Find the last heading of the specified level before the given index
+ */
+const findLastIndexBefore = (
+  headings: HeadingInfo[],
+  currentIndex: number,
+  level: number
+): number => {
+  for (let i = currentIndex - 1; i >= 0; i--) {
+    if (headings[i].level === level) {
+      return i;
+    }
+  }
+
+  return -1; // Not found
+};
+
+/**
+ * Process section headings using pre-analyzed structure
+ */
+const processSectionsWithStructure = (
+  content: string,
+  headings: HeadingInfo[]
+): string => {
+  // Create a predictable ordering of headings by index
+  const orderedHeadings = [...headings].sort((a, b) => a.index - b.index);
+
+  // Instead of doing replacements sequentially which alters offsets,
+  // replace all section tags in a single pass by building up a new string
+  let result = "";
+  let lastIndex = 0;
+
+  // Process the content in order of appearance
+  for (const heading of orderedHeadings) {
+    // Determine what kind of tag to look for
+    let tagPattern: string;
+    if (heading.level === 1) {
+      tagPattern = `\\section{${heading.text}}`;
+    } else if (heading.level === 2) {
+      tagPattern = `\\subsection{${heading.text}}`;
+    } else if (heading.level === 3) {
+      tagPattern = `\\subsubsection{${heading.text}}`;
+    } else {
+      continue; // Skip unknown levels
+    }
+
+    // Find the position of this exact tag
+    const tagIndex = content.indexOf(tagPattern, lastIndex);
+    if (tagIndex === -1) continue; // Skip if not found (shouldn't happen)
+
+    // Add content between the last tag and this one
+    result += content.substring(lastIndex, tagIndex);
+
+    // Create HTML for this heading
+    const id = heading.text
+      .replace(/\s+/g, "-")
+      .replace(/[^\w-]/g, "")
+      .toLowerCase();
+    let htmlTag: string;
+
+    if (heading.level === 1) {
+      htmlTag = `<h1 id="${id}"><span class="section-number">${heading.number}.</span> ${heading.text}</h1>`;
+    } else if (heading.level === 2) {
+      htmlTag = `<h2 id="${id}"><span class="section-number">${heading.number}</span> ${heading.text}</h2>`;
+    } else {
+      // level 3
+      htmlTag = `<h3 id="${id}"><span class="section-number">${heading.number}</span> ${heading.text}</h3>`;
+    }
+
+    // Add the HTML tag to the result
+    result += htmlTag;
+
+    // Update last index to after this tag
+    lastIndex = tagIndex + tagPattern.length;
+  }
+
+  // Add any remaining content
+  if (lastIndex < content.length) {
+    result += content.substring(lastIndex);
+  }
+
+  // Process other elements
+  result = result.replace(/\\title\{(.*?)\}/g, '<h1 class="title">$1</h1>');
+  result = result.replace(/\\author\{(.*?)\}/g, '<div class="author">$1</div>');
+  result = result.replace(/\\date\{(.*?)\}/g, '<div class="date">$1</div>');
+
+  return result;
+};
+
+/**
+ * Process special LaTeX commands
+ */
+const processSpecialCommands = (
+  content: string,
+  headings: HeadingInfo[] = []
+): string => {
+  // Handle \today command
+  content = content.replace(/\\today/g, getCurrentDate());
+
+  // Handle \tableofcontents command
+  if (content.includes("\\tableofcontents")) {
+    const toc = generateTableOfContents(headings);
+    // Replace the tableofcontents command with the actual table of contents
+    content = content.replace(/\\tableofcontents/g, toc);
+  }
+
+  return content;
+};
+
+/**
+ * Get current date in LaTeX format
+ */
+const getCurrentDate = (): string => {
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  const date = new Date();
+  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+};
+
+/**
+ * Generate table of contents HTML
+ */
+const generateTableOfContents = (headings: HeadingInfo[]): string => {
+  if (headings.length === 0) {
+    return '<div class="toc"><h2>Table of Contents</h2><p>No headings found.</p></div>';
+  }
+
+  let toc = '<div class="toc"><h2>Table of Contents</h2><ul>';
+
+  headings.forEach((heading) => {
+    // Create a clean ID for linking - remove special characters
+    const headingId = heading.text
+      .replace(/\s+/g, "-")
+      .replace(/[^\w-]/g, "")
+      .toLowerCase();
+
+    toc += `<li class="toc-h${heading.level}">
+      <a href="#${headingId}"><span class="section-number">${heading.number}</span> ${heading.text}</a>
+    </li>`;
+  });
+
+  toc += "</ul></div>";
+  return toc;
+};
+
+/**
+ * Process document content, preserving math expressions for MathJax
+ */
+const processContent = (content: string): string => {
+  // Basic paragraph handling
+  const paragraphs = content.split(/\n\n+/).filter((p) => p.trim());
+
+  return paragraphs
+    .map((p) => {
+      // Skip if it's already a section heading or TOC
+      if (p.trim().startsWith("<h") || p.trim().startsWith('<div class="toc"'))
+        return p;
+
+      // Handle text formatting directly here, before other processing
+      let processed = p;
+
+      // Let MathJax handle math expressions
+      // We do simple environment conversions
+      processed = processed
+        .replace(
+          /\\begin\{equation\}([\s\S]*?)\\end\{equation\}/g,
+          "$$\n$1\n$$"
+        )
+        .replace(
+          /\\begin\{align\}([\s\S]*?)\\end\{align\}/g,
+          "$$\n\\begin{aligned}$1\\end{aligned}\n$$"
+        )
+        .replace(/\\begin\{itemize\}([\s\S]*?)\\end\{itemize\}/g, "<ul>$1</ul>")
+        .replace(/\\item\s+/g, "<li>")
+        .replace(/\n\\item/g, "</li>\n<li>")
+        .replace(/<li>([\s\S]*?)(?=<li>|<\/ul>)/g, "<li>$1</li>");
+
+      // Wrap in paragraph tags if it's not a special environment
+      if (
+        !processed.startsWith("<ul>") &&
+        !processed.startsWith("$$") &&
+        !processed.startsWith("<div")
+      ) {
+        processed = `<p>${processed}</p>`;
+      }
+
+      return processed;
+    })
+    .join("\n");
+};
+
+export default compileLatex;

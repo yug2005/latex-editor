@@ -33,6 +33,8 @@ export const LATEX_COMMANDS: LatexCommand[] = [
     keyword: "subparagraph",
     description: "Creates a subparagraph-level heading",
   },
+  { keyword: "tableofcontents", description: "Generates a table of contents" },
+  { keyword: "today", description: "Inserts the current date" },
 
   // Lists
   { keyword: "itemize", description: "Creates an unordered list" },

@@ -128,7 +128,6 @@ export const getLatexSuggestions = async (
   const {
     documentContent,
     cursorPosition,
-    prefix = "",
     maxTokens = 150,
     temperature = 0.7,
   } = options;

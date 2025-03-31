@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   askAIQuestion,
   AI_MODELS,
-  AIModelKey,
   AIModelValue,
 } from "../services/aiService";
 import ReactMarkdown from "react-markdown";

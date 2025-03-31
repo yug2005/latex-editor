@@ -3,9 +3,63 @@ import fs from "fs";
 import path from "path";
 import isDev from "electron-is-dev";
 
+// Register protocol handler for production
+if (!isDev) {
+  // This prevents the ESM protocol error in packaged apps
+  app.on("ready", () => {
+    const protocol = require("electron").protocol;
+    protocol.registerSchemesAsPrivileged([
+      { scheme: "electron", privileges: { secure: true, standard: true } },
+    ]);
+  });
+}
+
+// Utility function to log app paths
+function logAppPaths() {
+  console.log("App paths:");
+  console.log("- app.getAppPath():", app.getAppPath());
+  console.log("- app.getPath('exe'):", app.getPath("exe"));
+  console.log("- app.getPath('userData'):", app.getPath("userData"));
+  console.log("- __dirname:", __dirname);
+
+  // Log files in app path
+  const appDir = app.getAppPath();
+  console.log(`\nFiles in ${appDir}:`);
+  try {
+    const files = fs.readdirSync(appDir);
+    files.forEach((file) => {
+      const stats = fs.statSync(path.join(appDir, file));
+      console.log(`- ${file} ${stats.isDirectory() ? "(dir)" : "(file)"}`);
+    });
+  } catch (err) {
+    console.error("Error reading app directory:", err);
+  }
+
+  // Check if build dir exists
+  const buildDir = path.join(appDir, "build");
+  if (fs.existsSync(buildDir)) {
+    console.log(`\nFiles in ${buildDir}:`);
+    try {
+      const files = fs.readdirSync(buildDir);
+      files.forEach((file) => {
+        console.log(`- ${file}`);
+      });
+    } catch (err) {
+      console.error("Error reading build directory:", err);
+    }
+  } else {
+    console.error("Build directory does not exist:", buildDir);
+  }
+}
+
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  // Log paths for debugging
+  if (!isDev) {
+    logAppPaths();
+  }
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -13,6 +67,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, "preload.js"),
+      devTools: true, // Always enable DevTools
     },
   });
 
@@ -24,7 +79,37 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     console.log("Loading production build...");
-    mainWindow.loadFile(path.join(__dirname, "../build/index.html"));
+    try {
+      // In production, the index.html is in the build directory
+      const indexPath = path.join(app.getAppPath(), "build", "index.html");
+      console.log("Trying to load:", indexPath);
+
+      // Check if the file exists
+      if (fs.existsSync(indexPath)) {
+        mainWindow.loadFile(indexPath);
+      } else {
+        console.error("Could not find index.html at:", indexPath);
+        // Try an alternative path
+        const altPath = path.join(__dirname, "..", "..", "build", "index.html");
+        console.log("Trying alternative path:", altPath);
+        if (fs.existsSync(altPath)) {
+          mainWindow.loadFile(altPath);
+        } else {
+          throw new Error(`Index.html not found at ${indexPath} or ${altPath}`);
+        }
+      }
+
+      // Open DevTools in production for debugging
+      mainWindow.webContents.openDevTools();
+    } catch (error) {
+      console.error("Failed to load app:", error);
+      if (mainWindow) {
+        mainWindow.webContents.loadURL(
+          `data:text/html,<html><body><h2>Error loading application</h2><pre>${error}</pre></body></html>`
+        );
+        mainWindow.webContents.openDevTools();
+      }
+    }
   }
 
   // Debug events
@@ -47,7 +132,11 @@ function createWindow() {
 // This method will be called when Electron has finished initialization
 app.whenReady().then(() => {
   console.log("Electron app is ready");
-  createWindow();
+  try {
+    createWindow();
+  } catch (error) {
+    console.error("Failed to create window:", error);
+  }
 });
 
 app.on("window-all-closed", () => {

@@ -1,5 +1,6 @@
 {
-  "name": "test-editor",
+  "name": "inline",
+  "productName": "Inline",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -27,11 +28,35 @@
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
-  "main": "electron/dist/main.js",
+  "main": "./build/electron.js",
   "scripts": {
     "start": "rm -rf electron/dist && tsc -p electron/tsconfig.json && concurrently -k \"cross-env BROWSER=none react-scripts start\" \"wait-on http://localhost:3000 && electron .\"",
     "electron": "rm -rf electron/dist && tsc -p electron/tsconfig.json && electron .",
-    "build": "rm -rf electron/dist && tsc -p electron/tsconfig.json && react-scripts build && electron-builder"
+    "build": "rm -rf electron/dist && tsc -p electron/tsconfig.json && react-scripts build && cp public/electron.js build/ && mkdir -p build/electron/dist && cp electron/dist/preload.js build/electron/dist/ && electron-builder",
+    "test": "react-scripts test",
+    "test:coverage": "react-scripts test --coverage --watchAll=false"
+  },
+  "build": {
+    "appId": "com.inline.app",
+    "productName": "Inline",
+    "files": [
+      "build/**/*",
+      "electron/dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "./build/electron.js"
+    },
+    "directories": {
+      "buildResources": "public",
+      "output": "dist"
+    },
+    "mac": {
+      "icon": "public/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "asar": true
   },
   "eslintConfig": {
     "extends": [

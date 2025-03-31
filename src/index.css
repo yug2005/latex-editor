@@ -33,6 +33,13 @@ code {
   box-shadow: inset -1px 0 0 #e5e7eb;
 }
 
+/* Dark mode for code blocks */
+.dark .markdown-content pre {
+  border-color: #2d3748;
+  background-color: #202020;
+  box-shadow: inset -1px 0 0 #2d3748;
+}
+
 /* Create a scrollable content area with padding inside the bordered container */
 .markdown-content pre code {
   display: block;
@@ -59,10 +66,19 @@ code {
   pointer-events: none;
 }
 
+.dark .markdown-content pre::after {
+  background-color: #374151;
+}
+
 /* Special styling for LaTeX code */
 .markdown-content pre.language-latex,
 .markdown-content pre:has(code.language-latex) {
   background-color: #f9fafb;
+}
+
+.dark .markdown-content pre.language-latex,
+.dark .markdown-content pre:has(code.language-latex) {
+  background-color: #202020;
 }
 
 .markdown-content code {
@@ -71,6 +87,10 @@ code {
 
 .markdown-content code:not(pre code) {
   @apply bg-gray-100 px-1 py-0.5 rounded;
+}
+
+.dark .markdown-content code:not(pre code) {
+  @apply bg-neutral-800 text-neutral-300;
 }
 
 .markdown-content h1,
@@ -98,9 +118,18 @@ code {
   @apply my-2;
 }
 
+.dark .markdown-content p {
+  @apply text-neutral-300;
+}
+
 .markdown-content ul,
 .markdown-content ol {
   @apply pl-5 my-2;
+}
+
+.dark .markdown-content ul,
+.dark .markdown-content ol {
+  @apply text-neutral-300;
 }
 
 .markdown-content ul {
@@ -115,32 +144,61 @@ code {
   @apply text-blue-500 underline;
 }
 
+.dark .markdown-content a {
+  @apply text-neutral-400;
+}
+
 .markdown-content blockquote {
-  @apply border-l-4 border-gray-300 pl-3 italic my-2 text-gray-700;
+  @apply border-l-4 border-neutral-300 pl-3 italic my-2 text-neutral-700;
+}
+
+.dark .markdown-content blockquote {
+  @apply border-neutral-600 text-neutral-400;
 }
 
 .markdown-content table {
-  @apply border-collapse border border-gray-300 my-2 text-sm;
+  @apply border-collapse border border-neutral-300 my-2 text-sm;
+}
+
+.dark .markdown-content table {
+  @apply border-neutral-700 text-neutral-300;
 }
 
 .markdown-content th,
 .markdown-content td {
-  @apply border border-gray-300 p-1;
+  @apply border border-neutral-300 p-1;
+}
+
+.dark .markdown-content th,
+.dark .markdown-content td {
+  @apply border-neutral-700;
 }
 
 .markdown-content th {
-  @apply bg-gray-100 font-medium;
+  @apply bg-neutral-100 font-medium;
+}
+
+.dark .markdown-content th {
+  @apply bg-[#252525];
 }
 
 /* Override prose color to match our theme */
 .prose {
-  @apply text-gray-800;
+  @apply text-neutral-800;
+}
+
+.dark .prose {
+  @apply text-neutral-200;
 }
 
 /* Custom styles for LaTeX editor in read-only mode */
 .latex-editor-readonly .monaco-editor .overflow-guard {
   border-radius: 0.25rem;
   background-color: #f9fafb !important;
+}
+
+.dark .latex-editor-readonly .monaco-editor .overflow-guard {
+  background-color: #202020 !important;
 }
 
 .latex-editor-readonly .monaco-editor {
@@ -160,6 +218,10 @@ code {
   background-color: #f9fafb !important;
 }
 
+.dark .latex-editor-readonly .monaco-editor .margin {
+  background-color: #202020 !important;
+}
+
 /* Custom scrollbar styling for code blocks */
 .latex-editor-readonly
   .monaco-editor
@@ -167,6 +229,15 @@ code {
   > .scrollbar
   > .slider {
   background: rgba(100, 100, 100, 0.4) !important;
+}
+
+.dark
+  .latex-editor-readonly
+  .monaco-editor
+  .monaco-scrollable-element
+  > .scrollbar
+  > .slider {
+  background: rgba(200, 200, 200, 0.4) !important;
 }
 
 .latex-editor-readonly

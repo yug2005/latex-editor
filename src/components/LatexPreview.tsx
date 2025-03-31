@@ -86,15 +86,17 @@ const LatexPreview: React.FC<LatexPreviewProps> = ({ content }) => {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="bg-gray-100 px-2 h-8 text-sm font-medium border-b flex justify-between items-center">
+      <div className="bg-neutral-100 px-2 h-8 text-sm font-medium border-b flex justify-between items-center dark:bg-[#202020] dark:border-neutral-700 dark:text-neutral-300">
         <span>Preview</span>
         <div className="flex items-center space-x-2">
           {isCompiling && (
-            <span className="text-xs text-gray-500">Compiling...</span>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+              Compiling...
+            </span>
           )}
         </div>
       </div>
-      <div className="flex-grow overflow-auto bg-white">
+      <div className="flex-grow overflow-auto bg-white dark:bg-white">
         {error ? (
           <div className="p-4 text-red-500">{error}</div>
         ) : (

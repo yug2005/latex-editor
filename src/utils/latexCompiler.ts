@@ -14,15 +14,32 @@ interface HeadingInfo {
 }
 
 /**
+ * Track loaded packages
+ */
+interface PackageInfo {
+  name: string;
+  options?: string;
+}
+
+/**
  * Process a LaTeX document to HTML with MathJax
  */
 export const compileLatex = (latex: string): string => {
+  // Remove comments first
+  latex = removeLatexComments(latex);
+
+  // Extract packages
+  const packages = extractPackages(latex);
+
   // Basic preprocessing - strip document class and document environment
   let content = latex
-    .replace(/\\documentclass\{.*?\}/g, "")
+    .replace(/\\documentclass(\[.*?\])?\{.*?\}/g, "")
     .replace(/\\begin\{document\}/g, "")
     .replace(/\\end\{document\}/g, "")
     .trim();
+
+  // Remove usepackage commands after extracting them
+  content = content.replace(/\\usepackage(?:\[(.*?)\])?\{(.*?)\}/g, "");
 
   // Process text formatting before other processing
   content = processLaTeXCommands(content);
@@ -39,6 +56,8 @@ export const compileLatex = (latex: string): string => {
   // For simplicity, we use a hybrid approach:
   // 1. Use our basic parser for document structure
   // 2. Load MathJax in the iframe for math rendering
+
+  const packageConfigJS = generatePackageConfigJS(packages);
 
   return `
     <html>
@@ -122,6 +141,13 @@ export const compileLatex = (latex: string): string => {
             /* 'page' placement - a bit harder to simulate */
             page-break-inside: avoid;
           }
+          
+          /* Page break styling */
+          .page-break {
+            page-break-after: always;
+            margin: 30px 0;
+            border-bottom: 1px dashed #ccc;
+          }
         </style>
         <script>
           window.MathJax = {
@@ -130,7 +156,7 @@ export const compileLatex = (latex: string): string => {
               displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
               processEscapes: true,
               processEnvironments: true,
-              packages: ['base', 'ams', 'noerrors', 'noundefined', 'enumerate']
+              packages: ['base', 'ams', 'noerrors', 'noundefined', 'enumerate'${packageConfigJS}]
             },
             options: {
               skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
@@ -145,6 +171,100 @@ export const compileLatex = (latex: string): string => {
       </body>
     </html>
   `;
+};
+
+/**
+ * Remove LaTeX comments from the source
+ * Comments in LaTeX start with % and continue to the end of the line
+ */
+const removeLatexComments = (source: string): string => {
+  // This handles % comments but preserves \% escaped percent signs
+  let result = "";
+  let inComment = false;
+  let i = 0;
+
+  while (i < source.length) {
+    // Check for escaped percent sign
+    if (i < source.length - 1 && source[i] === "\\" && source[i + 1] === "%") {
+      result += "\\%";
+      i += 2;
+      continue;
+    }
+
+    // Check for comment start
+    if (source[i] === "%") {
+      inComment = true;
+    }
+
+    // Check for end of line
+    if (source[i] === "\n") {
+      inComment = false;
+      result += "\n";
+    } else if (!inComment) {
+      result += source[i];
+    }
+
+    i++;
+  }
+
+  return result;
+};
+
+/**
+ * Extract LaTeX package information
+ */
+const extractPackages = (latex: string): PackageInfo[] => {
+  const packages: PackageInfo[] = [];
+
+  // Extract \usepackage commands
+  const packageRegex = /\\usepackage(?:\[(.*?)\])?\{(.*?)\}/g;
+  let match;
+
+  while ((match = packageRegex.exec(latex)) !== null) {
+    const options = match[1];
+    const packageNames = match[2].split(",").map((p) => p.trim());
+
+    for (const name of packageNames) {
+      packages.push({
+        name,
+        options: options,
+      });
+    }
+  }
+
+  return packages;
+};
+
+/**
+ * Generate MathJax package configuration from LaTeX packages
+ */
+const generatePackageConfigJS = (packages: PackageInfo[]): string => {
+  // Map LaTeX packages to MathJax packages
+  const packageMap: Record<string, string> = {
+    amsmath: "ams",
+    amssymb: "ams",
+    amsthm: "ams",
+    mathtools: "ams",
+    physics: "physics",
+    cancel: "cancel",
+    color: "color",
+    xcolor: "color",
+    bm: "boldsymbol",
+    enumerate: "enumerate",
+    algorithm: "algorithm",
+    algorithmic: "algorithm",
+    mhchem: "mhchem",
+  };
+
+  // Add supported packages to MathJax config
+  const supportedPackages = packages
+    .map((pkg) => packageMap[pkg.name])
+    .filter(Boolean)
+    .filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
+
+  if (supportedPackages.length === 0) return "";
+
+  return ", '" + supportedPackages.join("', '") + "'";
 };
 
 /**
@@ -163,6 +283,10 @@ const processLaTeXCommands = (content: string): string => {
     // Replace \emph{...} with <em>...</em>
     content = content.replace(/\\emph\{([^{}]*)\}/g, "<em>$1</em>");
   }
+
+  // Process newpage
+  content = content.replace(/\\newpage/g, '<div class="page-break"></div>');
+  content = content.replace(/\\pagebreak/g, '<div class="page-break"></div>');
 
   return content;
 };
@@ -475,8 +599,10 @@ const generateTableOfContents = (headings: HeadingInfo[]): string => {
  * Process document content, preserving math expressions for MathJax
  */
 const processContent = (content: string): string => {
-  // Pre-process all enumerate environments before paragraph splitting
+  // Pre-process all list environments before paragraph splitting
   // This ensures they're handled by our HTML converter not MathJax
+
+  // Process enumerate environments
   content = content.replace(
     /\\begin\{enumerate\}([\s\S]*?)\\end\{enumerate\}/g,
     (match, enumContent) => {
@@ -496,6 +622,26 @@ const processContent = (content: string): string => {
     }
   );
 
+  // Process itemize environments
+  content = content.replace(
+    /\\begin\{itemize\}([\s\S]*?)\\end\{itemize\}/g,
+    (match, itemizeContent) => {
+      // Process list items
+      let htmlList = "<ul>";
+
+      // Split by \item and process each item
+      const items = itemizeContent
+        .split(/\\item\s+/)
+        .filter((item: string) => item.trim().length > 0)
+        .map((item: string) => `<li>${item.trim()}</li>`);
+
+      htmlList += items.join("\n");
+      htmlList += "</ul>";
+
+      return htmlList;
+    }
+  );
+
   // Basic paragraph handling
   const paragraphs = content.split(/\n\n+/).filter((p) => p.trim());
 
@@ -505,7 +651,9 @@ const processContent = (content: string): string => {
       if (
         p.trim().startsWith("<h") ||
         p.trim().startsWith('<div class="toc"') ||
-        p.trim().startsWith("<ol>")
+        p.trim().startsWith("<ol>") ||
+        p.trim().startsWith("<ul>") ||
+        p.trim().startsWith('<div class="page-break"')
       )
         return p;
 
@@ -525,11 +673,7 @@ const processContent = (content: string): string => {
         .replace(
           /\\begin\{align\}([\s\S]*?)\\end\{align\}/g,
           "$$\n\\begin{aligned}$1\\end{aligned}\n$$"
-        )
-        .replace(/\\begin\{itemize\}([\s\S]*?)\\end\{itemize\}/g, "<ul>$1</ul>")
-        .replace(/\\item\s+/g, "<li>")
-        .replace(/\n\\item/g, "</li>\n<li>")
-        .replace(/<li>([\s\S]*?)(?=<li>|<\/ul>|<\/ol>)/g, "<li>$1</li>");
+        );
 
       // Wrap in paragraph tags if it's not a special environment
       if (

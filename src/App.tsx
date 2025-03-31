@@ -24,12 +24,22 @@ const App = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [isChatOpen, setIsChatOpen] = useState<boolean>(true);
   const [cursorPosition, setCursorPosition] = useState<number>(0);
+  const [darkMode, setDarkMode] = useState<boolean>(false);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   // Check for unsaved changes when content changes
   useEffect(() => {
     setHasUnsavedChanges(content !== initialContent);
   }, [content, initialContent]);
+
+  // Apply dark mode class to html element
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [darkMode]);
 
   const confirmDiscardChanges = (): boolean => {
     if (hasUnsavedChanges) {
@@ -71,6 +81,10 @@ const App = () => {
     setIsChatOpen(!isChatOpen);
   };
 
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+  };
+
   const handleEditorDidMount = (
     editor: monaco.editor.IStandaloneCodeEditor
   ) => {
@@ -93,9 +107,9 @@ const App = () => {
   // Custom resize handle component
   const ResizeHandle = () => {
     return (
-      <PanelResizeHandle className="w-1 bg-gray-300 hover:bg-blue-500 relative">
+      <PanelResizeHandle className="w-1 bg-neutral-300 hover:bg-blue-500 dark:bg-neutral-600 dark:hover:bg-neutral-500 relative">
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="h-16 w-1 rounded-full bg-gray-400"></div>
+          <div className="h-16 w-1 rounded-full bg-neutral-400 dark:bg-neutral-500"></div>
         </div>
       </PanelResizeHandle>
     );
@@ -104,17 +118,17 @@ const App = () => {
   // Vertical resize handle component
   const VerticalResizeHandle = () => {
     return (
-      <PanelResizeHandle className="h-1 bg-gray-300 hover:bg-blue-500 relative">
+      <PanelResizeHandle className="h-1 bg-neutral-300 hover:bg-blue-500 dark:bg-neutral-600 dark:hover:bg-neutral-500 relative">
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-16 h-1 rounded-full bg-gray-400"></div>
+          <div className="w-16 h-1 rounded-full bg-neutral-400 dark:bg-neutral-500"></div>
         </div>
       </PanelResizeHandle>
     );
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <div className="flex justify-between items-center p-2 bg-gray-800 text-white">
+    <div className="flex flex-col h-screen bg-neutral-50 dark:bg-[#202020]">
+      <div className="flex justify-between items-center p-2 bg-neutral-800 text-white dark:bg-[#181818]">
         <div className="flex items-center space-x-2">
           <button
             className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-1 px-3 rounded text-sm"
@@ -138,7 +152,7 @@ const App = () => {
             className={`${
               isChatOpen
                 ? "bg-indigo-500 hover:bg-indigo-700"
-                : "bg-gray-500 hover:bg-gray-700"
+                : "bg-neutral-500 hover:bg-neutral-700"
             } text-white font-bold py-1 px-3 rounded text-sm flex items-center`}
             onClick={toggleChat}
           >
@@ -158,9 +172,54 @@ const App = () => {
             </svg>
             Chat
           </button>
+          <button
+            className={`bg-amber-500 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded text-sm flex items-center`}
+            onClick={toggleDarkMode}
+          >
+            {darkMode ? (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-1"
+              >
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+            ) : (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-1"
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            )}
+            {darkMode ? "Light" : "Dark"}
+          </button>
         </div>
         <div className="text-sm truncate max-w-md">{displayFileName}</div>
-        <div className="text-xs text-gray-300">AI-powered LaTeX Editor</div>
+        <div className="text-xs text-neutral-300">AI-powered LaTeX Editor</div>
       </div>
 
       <div

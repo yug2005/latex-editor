@@ -258,14 +258,17 @@ const AIChat: React.FC<AIChatProps> = ({
             );
           } else {
             return (
-              <div key={index} className="my-2 border rounded overflow-hidden">
-                <div className="flex items-center bg-gray-100 px-2 py-1 border-b">
-                  <span className="text-xs font-medium text-gray-500">
+              <div
+                key={index}
+                className="my-2 border rounded overflow-hidden dark:border-neutral-700"
+              >
+                <div className="flex items-center bg-neutral-100 px-2 py-1 border-b dark:bg-neutral-800 dark:border-neutral-700">
+                  <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
                     LaTeX Code
                   </span>
                   <button
                     onClick={() => copyToClipboard(part.content)}
-                    className="ml-auto text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-0.5 rounded flex items-center"
+                    className="ml-auto text-xs bg-neutral-200 hover:bg-neutral-300 text-neutral-700 dark:bg-neutral-700 dark:hover:bg-neutral-600 dark:text-neutral-300 px-1.5 py-0.5 rounded flex items-center"
                     title="Copy LaTeX code"
                   >
                     <svg
@@ -332,12 +335,14 @@ const AIChat: React.FC<AIChatProps> = ({
   }));
 
   return (
-    <div className="flex flex-col h-full border-t border-gray-200">
-      <div className="flex items-center justify-between p-2 bg-gray-100 border-b">
-        <h3 className="text-sm font-medium flex-grow overflow-hidden text-ellipsis whitespace-nowrap">Chat with AI Assistant</h3>
+    <div className="flex flex-col h-full border-t border-neutral-200 dark:border-neutral-700">
+      <div className="flex items-center justify-between p-2 bg-neutral-100 border-b dark:bg-[#202020] dark:border-neutral-700">
+        <h3 className="text-sm font-medium flex-grow overflow-hidden text-ellipsis whitespace-nowrap dark:text-neutral-300">
+          Chat with AI Assistant
+        </h3>
         <button
           onClick={handleNewChat}
-          className="p-1 px-2 rounded hover:bg-gray-200 flex items-center text-xs"
+          className="p-1 px-2 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center text-xs dark:text-neutral-300"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -358,8 +363,10 @@ const AIChat: React.FC<AIChatProps> = ({
         <button
           onClick={toggleHistory}
           className={`p-1 px-2 mr-2 rounded flex items-center text-xs ${
-            isHistoryOpen ? "bg-blue-100" : "hover:bg-gray-200"
-          }`}
+            isHistoryOpen
+              ? "bg-blue-100 dark:bg-neutral-800"
+              : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
+          } dark:text-neutral-300`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -381,7 +388,7 @@ const AIChat: React.FC<AIChatProps> = ({
           <select
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value as AIModelValue)}
-            className="text-xs border rounded p-1 bg-white"
+            className="text-xs border rounded p-1 bg-white dark:bg-[#252525] dark:text-neutral-300 dark:border-neutral-600"
             title="Select AI model"
           >
             {modelOptions.map((option) => (
@@ -393,7 +400,7 @@ const AIChat: React.FC<AIChatProps> = ({
         </div>
         <button
           onClick={onClose}
-          className="p-1 px-2 ml-1 rounded hover:bg-gray-200"
+          className="p-1 px-2 ml-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 dark:text-neutral-300"
           title="Close chat"
         >
           <svg
@@ -416,8 +423,8 @@ const AIChat: React.FC<AIChatProps> = ({
 
       {/* Chat history dropdown */}
       {isHistoryOpen && (
-        <div className="bg-white border-b shadow-md max-h-60 overflow-y-auto z-10">
-          <div className="p-2 text-xs text-gray-500 bg-gray-50 sticky top-0">
+        <div className="bg-white border-b shadow-md max-h-60 overflow-y-auto z-10 dark:bg-[#202020] dark:border-neutral-700">
+          <div className="p-2 text-xs text-neutral-500 bg-neutral-50 sticky top-0 dark:bg-[#252525] dark:text-neutral-400">
             Chat History
           </div>
           {chats.map((chat) => (
@@ -427,14 +434,16 @@ const AIChat: React.FC<AIChatProps> = ({
                 setActiveChat(chat.id);
                 setIsHistoryOpen(false);
               }}
-              className={`p-2 text-sm truncate cursor-pointer hover:bg-gray-100 border-b ${
-                activeChat === chat.id ? "bg-blue-50" : ""
+              className={`p-2 text-sm truncate cursor-pointer hover:bg-neutral-100 border-b dark:border-neutral-700 dark:hover:bg-neutral-700 ${
+                activeChat === chat.id ? "bg-blue-50 dark:bg-[#202020]" : ""
               }`}
               title={chat.title}
             >
               <div className="flex items-center justify-between">
-                <span className="truncate">{chat.title || "New Chat"}</span>
-                <span className="text-xs text-gray-400">
+                <span className="truncate dark:text-neutral-300">
+                  {chat.title || "New Chat"}
+                </span>
+                <span className="text-xs text-neutral-400 dark:text-neutral-500">
                   {chat.createdAt.toLocaleDateString()}
                 </span>
               </div>
@@ -449,7 +458,7 @@ const AIChat: React.FC<AIChatProps> = ({
       >
         {/* Messages */}
         {getCurrentChat().messages.length > 0 ? (
-          <div className="flex-grow p-3 overflow-y-auto bg-white h-0 min-h-0">
+          <div className="flex-grow p-3 overflow-y-auto bg-white h-0 min-h-0 dark:bg-[#202020]">
             {getCurrentChat().messages.map((message) => (
               <div
                 key={message.id}
@@ -461,18 +470,18 @@ const AIChat: React.FC<AIChatProps> = ({
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center mr-2 flex-shrink-0 ${
                       message.role === "assistant"
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-200"
+                        ? "bg-blue-500 text-white dark:bg-neutral-600"
+                        : "bg-neutral-200 dark:bg-neutral-700"
                     }`}
                   >
                     {message.role === "assistant" ? "AI" : "U"}
                   </div>
                   <div className="flex-grow min-w-0 overflow-hidden">
-                    <div className="text-xs font-medium mb-1 flex items-center">
+                    <div className="text-xs font-medium mb-1 flex items-center dark:text-neutral-300">
                       {message.role === "assistant" ? (
                         <>
                           <span>Assistant</span>
-                          <span className="ml-2 text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-500">
+                          <span className="ml-2 text-xs px-1.5 py-0.5 bg-neutral-100 rounded text-neutral-500 dark:bg-neutral-700 dark:text-neutral-400">
                             {getModelDisplayName(selectedModel)}
                           </span>
                         </>
@@ -481,12 +490,12 @@ const AIChat: React.FC<AIChatProps> = ({
                       )}
                     </div>
                     {message.role === "assistant" ? (
-                      <div className="text-sm markdown-content prose prose-sm overflow-hidden">
+                      <div className="text-sm markdown-content prose prose-sm overflow-hidden dark:prose-invert">
                         {renderMessageContent(message.content)}
                         <div className="flex justify-end mt-2">
                           <button
                             onClick={() => copyToClipboard(message.content)}
-                            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded flex items-center"
+                            className="text-xs bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-2 py-1 rounded flex items-center dark:bg-neutral-700 dark:hover:bg-neutral-600 dark:text-neutral-300"
                             title="Copy response"
                           >
                             <svg
@@ -516,7 +525,7 @@ const AIChat: React.FC<AIChatProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <div className="text-sm whitespace-pre-wrap">
+                      <div className="text-sm whitespace-pre-wrap dark:text-neutral-300">
                         {message.content}
                       </div>
                     )}
@@ -525,13 +534,13 @@ const AIChat: React.FC<AIChatProps> = ({
               </div>
             ))}
             {isLoading && (
-              <div className="flex items-center text-gray-500 text-sm">
-                <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center mr-2">
+              <div className="flex items-center text-neutral-500 text-sm dark:text-neutral-400">
+                <div className="w-8 h-8 rounded-full bg-blue-500 text-white dark:bg-neutral-600 flex items-center justify-center mr-2">
                   AI
                 </div>
                 <div>
                   <span className="mr-2">Thinking...</span>
-                  <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-500">
+                  <span className="text-xs px-1.5 py-0.5 bg-neutral-100 rounded text-neutral-500 dark:bg-neutral-700 dark:text-neutral-400">
                     {getModelDisplayName(selectedModel)}
                   </span>
                 </div>
@@ -540,16 +549,16 @@ const AIChat: React.FC<AIChatProps> = ({
             <div ref={messagesEndRef} />
           </div>
         ) : (
-          <div className="flex-grow flex items-end bg-white overflow-auto">
-            <div className="w-full p-3 text-gray-400 text-sm">
+          <div className="flex-grow flex items-end bg-white overflow-auto dark:bg-[#202020]">
+            <div className="w-full p-3 text-neutral-400 text-sm dark:text-neutral-500">
               {isLoading && (
-                <div className="flex items-center text-gray-500 text-sm mb-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center mr-2">
+                <div className="flex items-center text-neutral-500 text-sm mb-3 dark:text-neutral-400">
+                  <div className="w-8 h-8 rounded-full bg-blue-500 text-white dark:bg-neutral-600 flex items-center justify-center mr-2">
                     AI
                   </div>
                   <div>
                     <span className="mr-2">Thinking...</span>
-                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-500">
+                    <span className="text-xs px-1.5 py-0.5 bg-neutral-100 rounded text-neutral-500 dark:bg-neutral-700 dark:text-neutral-400">
                       {getModelDisplayName(selectedModel)}
                     </span>
                   </div>
@@ -561,7 +570,7 @@ const AIChat: React.FC<AIChatProps> = ({
 
         {/* Input area */}
         <div
-          className={`p-3 border-t flex-shrink-0 ${
+          className={`p-3 border-t flex-shrink-0 dark:border-neutral-700 dark:bg-[#202020] ${
             getCurrentChat().messages.length === 0 ? "mt-auto" : ""
           }`}
         >
@@ -576,7 +585,7 @@ const AIChat: React.FC<AIChatProps> = ({
                   ? "Ask any question about your document..."
                   : "Ask a follow-up question..."
               }
-              className="flex-grow p-2 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 overflow-auto text-sm"
+              className="flex-grow p-2 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-neutral-500 overflow-auto text-sm dark:bg-neutral-700 dark:border-neutral-600 dark:text-neutral-200 dark:placeholder-neutral-400"
               rows={1}
               style={{ minHeight: "60px" }}
             />
@@ -585,8 +594,8 @@ const AIChat: React.FC<AIChatProps> = ({
               disabled={!inputValue.trim() || isLoading}
               className={`ml-2 p-2 rounded-lg ${
                 !inputValue.trim() || isLoading
-                  ? "bg-gray-300 text-gray-500"
-                  : "bg-blue-500 text-white hover:bg-blue-600"
+                  ? "bg-neutral-300 text-neutral-500 dark:bg-neutral-600 dark:text-neutral-400"
+                  : "bg-blue-500 text-white hover:bg-blue-600 dark:bg-neutral-700 dark:hover:bg-neutral-600"
               }`}
             >
               <svg

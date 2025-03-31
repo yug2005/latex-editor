@@ -28,9 +28,37 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
   const [editorInstance, setEditorInstance] =
     useState<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [aiEnabled, setAiEnabled] = useState<boolean>(true);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
   useEffect(() => {
     initializeMonaco();
+
+    // Check if dark mode is enabled
+    const checkDarkMode = () => {
+      setIsDarkMode(document.documentElement.classList.contains("dark"));
+    };
+
+    // Initial check
+    checkDarkMode();
+
+    // Create a mutation observer to monitor class changes on html
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (
+          mutation.type === "attributes" &&
+          mutation.attributeName === "class"
+        ) {
+          checkDarkMode();
+        }
+      });
+    });
+
+    // Start observing
+    observer.observe(document.documentElement, { attributes: true });
+
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
   const handleEditorDidMount = useCallback(
@@ -72,12 +100,14 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
     >
       {showToolbar && (
         <div
-          className="flex items-center p-1 bg-gray-100 border-b flex-shrink-0"
+          className="flex items-center p-1 bg-neutral-100 border-b flex-shrink-0 dark:bg-[#202020] dark:border-neutral-700"
           style={{ height: "32px" }}
         >
           <button
             className={`px-2 py-1 text-xs rounded flex-shrink-0 flex items-center ${
-              aiEnabled ? "bg-blue-500 text-white" : "bg-gray-300 text-gray-700"
+              aiEnabled
+                ? "bg-blue-500 text-white dark:bg-neutral-600"
+                : "bg-neutral-300 text-neutral-700 dark:bg-neutral-600 dark:text-neutral-300"
             }`}
             onClick={toggleAI}
             title={
@@ -103,9 +133,9 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
               {aiEnabled ? "AI On (GPT-4o)" : "AI Off"}
             </span>
           </button>
-          <div className="ml-2 text-xs text-gray-500 truncate flex-shrink min-w-0">
+          <div className="ml-2 text-xs text-neutral-500 truncate flex-shrink min-w-0 dark:text-neutral-400">
             <span className="hidden sm:inline whitespace-nowrap">Press </span>
-            <kbd className="px-1 py-0.5 text-xs border border-gray-300 rounded bg-gray-50 inline-flex items-center justify-center flex-shrink-0 mx-0.5">
+            <kbd className="px-1 py-0.5 text-xs border border-neutral-300 rounded bg-neutral-50 inline-flex items-center justify-center flex-shrink-0 mx-0.5 dark:bg-[#252525] dark:border-neutral-600 dark:text-neutral-300">
               Tab
             </kbd>
             <span className="hidden sm:inline whitespace-nowrap">
@@ -122,7 +152,7 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
         <Editor
           height={height}
           defaultLanguage="latex"
-          theme="latexTheme"
+          theme={isDarkMode ? "vs-dark" : "latexTheme"}
           value={value}
           onChange={(value) => onChange(value || "")}
           onMount={handleEditorDidMount}

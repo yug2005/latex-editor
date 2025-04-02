@@ -339,7 +339,6 @@ const analyzeDocumentStructure = (content: string): HeadingInfo[] => {
 
   // Sort all headings by their position in the document
   headings.sort((a, b) => a.index - b.index);
-  console.log(headings);
 
   // Second pass: Calculate proper section numbers
   let currentSectionNumber = 0;

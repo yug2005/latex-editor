@@ -36,19 +36,6 @@ const InlineAISuggestion: React.FC<InlineAISuggestionProps> = ({ editor }) => {
     let suggestionTimer: NodeJS.Timeout | null = null;
     let isFetchingSuggestion = false;
 
-    // First, make sure inlineSuggest is enabled
-    try {
-      editor.updateOptions({
-        inlineSuggest: {
-          enabled: true,
-          mode: "prefix",
-          showToolbar: "always",
-        },
-      });
-    } catch (err) {
-      console.error("[InlineAISuggestion] Could not set inlineSuggest options");
-    }
-
     // Register inline completions provider using loader
     loader.init().then((monaco) => {
       try {
@@ -101,15 +88,7 @@ const InlineAISuggestion: React.FC<InlineAISuggestionProps> = ({ editor }) => {
     // Trigger inline suggestions
     const triggerInlineSuggestions = () => {
       if (!editor || !pendingSuggestionRef.current) return;
-
-      try {
-        editor.trigger("", "editor.action.inlineSuggest.trigger", {});
-      } catch (error) {
-        console.error(
-          "[InlineAISuggestion] Error triggering suggestions:",
-          error
-        );
-      }
+      editor.trigger("", "editor.action.inlineSuggest.trigger", {});
     };
 
     // Fetch and show AI suggestions

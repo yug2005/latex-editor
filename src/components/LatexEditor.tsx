@@ -194,6 +194,11 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
             renderWhitespace: readOnly ? "none" : "none",
             renderControlCharacters: !readOnly,
             fixedOverflowWidgets: true,
+            inlineSuggest: {
+              enabled: true,
+              mode: "subwordSmart",
+              showToolbar: "always",
+            },
           }}
         />
       </div>

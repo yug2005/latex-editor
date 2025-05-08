@@ -7,15 +7,15 @@ import React, {
   useEffect,
 } from "react";
 import * as monaco from "monaco-editor";
-import { EditTracker } from "../utils/editGroupsTracking";
+import { EditChange, EditTracker } from "../utils/editGroupsTracking";
 
 // Structure for cursor information
 interface CursorInfo {
-  position: monaco.Position | null;
+  position: monaco.Position;
   offset: number;
   lineContent: string;
   wordRange: monaco.Range | null;
-  wordAtPosition: string | null;
+  wordAtPosition: string | undefined;
 }
 
 // Structure for visible range information
@@ -32,10 +32,10 @@ interface LatexContextType {
   setCurrentEditor: (
     editor: monaco.editor.IStandaloneCodeEditor | null
   ) => void;
+  getCurrentDocument: () => string;
   getCurrentCursorInfo: () => CursorInfo | null;
   getVisibleRangeInfo: () => VisibleRangeInfo | null;
-  getRecentEditsSummary: () => any;
-
+  getRecentEditsSummary: () => EditChange[];
   // Make the update functions public
   updateCursorInfo: () => void;
   updateVisibleRange: () => void;
@@ -45,7 +45,7 @@ interface LatexContextType {
 }
 
 // Create context with a default empty value
-export const LatexContext = createContext<LatexContextType | null>(null);
+const LatexContext = createContext<LatexContextType | null>(null);
 
 // Custom hook for using the context
 export const useLatexContext = () => {
@@ -122,7 +122,7 @@ export const LatexContextProvider: React.FC<LatexContextProviderProps> = ({
       offset,
       lineContent,
       wordRange: wordRange,
-      wordAtPosition: wordInfo ? wordInfo.word : null,
+      wordAtPosition: wordInfo ? wordInfo.word : undefined,
     });
 
     console.log("[LatexContext] Cursor position updated:", offset);
@@ -169,10 +169,14 @@ export const LatexContextProvider: React.FC<LatexContextProviderProps> = ({
   const contextValue: LatexContextType = {
     setCurrentModel,
     setCurrentEditor,
+    getCurrentDocument: () => {
+      if (!currentModel) return "";
+      return currentModel.getValue();
+    },
     getCurrentCursorInfo: () => cursorInfo,
     getVisibleRangeInfo: () => visibleRange,
     getRecentEditsSummary: () => {
-      if (!editTrackerRef.current) return "No edit history available";
+      if (!editTrackerRef.current) return [];
       return editTrackerRef.current.getRecentChangesSummary();
     },
     updateCursorInfo,

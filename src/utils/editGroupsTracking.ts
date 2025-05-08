@@ -3,9 +3,11 @@ import * as monaco from "monaco-editor";
 // Time window for grouping edit operations (ms)
 export const EDIT_GROUPING_THRESHOLD = 1000;
 
+type EditType = "insertion" | "deletion" | "replacement";
+
 // Interface for tracking edit operations
 export interface EditOperation {
-  type: "insert" | "delete" | "replace";
+  type: EditType;
   range: monaco.IRange;
   text: string;
   deletedText: string;
@@ -15,11 +17,18 @@ export interface EditOperation {
 // Interface for grouped edits
 export interface EditGroup {
   operations: EditOperation[];
-  type: "insertion" | "deletion" | "replacement";
+  type: EditType;
   startTime: number;
   endTime: number;
   insertedText: string; // Net text inserted
   deletedText: string; // Net text deleted
+}
+
+export interface EditChange {
+  type: EditType;
+  insertedText: string;
+  deletedText: string;
+  timeElapsed: number;
 }
 
 /**
@@ -76,7 +85,7 @@ export class EditTracker {
 
       // Create the operation
       const op: EditOperation = {
-        type: isDelete ? "delete" : isInsert ? "insert" : "replace",
+        type: isDelete ? "deletion" : isInsert ? "insertion" : "replacement",
         range: { ...change.range },
         text: change.text,
         deletedText,
@@ -220,17 +229,17 @@ export class EditTracker {
     if (sortedOps.length > 0) {
       // Get original content from first operation
       const firstOp = sortedOps[0];
-      if (firstOp.type === "delete" || firstOp.type === "replace") {
+      if (firstOp.type === "deletion" || firstOp.type === "replacement") {
         // Original content includes what was deleted in first operation
         originalContent = firstOp.deletedText;
       }
 
       // Now simulate each operation to track document changes
       for (const op of sortedOps) {
-        if (op.type === "insert") {
+        if (op.type === "insertion") {
           // Content is being added
           documentState += op.text;
-        } else if (op.type === "delete") {
+        } else if (op.type === "deletion") {
           // Content is being removed - check if it matches our running state
           if (documentState.endsWith(op.deletedText)) {
             // Deleting something we just added - internal correction
@@ -245,7 +254,7 @@ export class EditTracker {
               position: op.range.startColumn,
             });
           }
-        } else if (op.type === "replace") {
+        } else if (op.type === "replacement") {
           // Replace is delete + insert
           if (documentState.endsWith(op.deletedText)) {
             // Replacing something we just added
@@ -371,12 +380,7 @@ export class EditTracker {
   /**
    * Get a summary of recent changes
    */
-  public getRecentChangesSummary(): {
-    type: "insertion" | "deletion" | "replacement";
-    insertedText: string;
-    deletedText: string;
-    timeElapsed: number;
-  }[] {
+  public getRecentChangesSummary(): EditChange[] {
     return this.editGroups.map((group) => ({
       type: group.type,
       insertedText: group.insertedText,

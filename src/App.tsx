@@ -256,11 +256,7 @@ const App = () => {
                       minSize={25}
                       className="overflow-hidden"
                     >
-                      <AIChat
-                        onClose={toggleChat}
-                        editorContent={content}
-                        cursorPosition={cursorPosition}
-                      />
+                      <AIChat onClose={toggleChat} />
                     </Panel>
                   </>
                 )}

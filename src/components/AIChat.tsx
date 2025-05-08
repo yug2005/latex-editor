@@ -21,15 +21,9 @@ interface Chat {
 
 interface AIChatProps {
   onClose: () => void;
-  editorContent: string;
-  cursorPosition?: number;
 }
 
-const AIChat: React.FC<AIChatProps> = ({
-  onClose,
-  editorContent,
-  cursorPosition,
-}) => {
+const AIChat: React.FC<AIChatProps> = ({ onClose }) => {
   const [chats, setChats] = useState<Chat[]>([
     {
       id: "1",
@@ -46,6 +40,13 @@ const AIChat: React.FC<AIChatProps> = ({
 
   // Access the Latex Context
   const latexContext = useLatexContext();
+  // Store latexContext methods in refs to avoid dependency issues
+  const latexContextRef = useRef(latexContext);
+
+  // Update the ref when latexContext changes
+  useEffect(() => {
+    latexContextRef.current = latexContext;
+  }, [latexContext]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -100,23 +101,11 @@ const AIChat: React.FC<AIChatProps> = ({
   const sendMessage = async () => {
     if (!inputValue.trim()) return;
 
-    // Get context information from latexContext
-    const cursorInfo = latexContext.getCurrentCursorInfo();
-    const visibleRangeInfo = latexContext.getVisibleRangeInfo();
-    const recentEdits = latexContext.getRecentEditsSummary();
-
-    // Log enhanced context information
-    console.log("[AIChat] Sending message with context:", {
-      cursorPosition: cursorInfo?.offset,
-      editorContentLength: editorContent.length,
-      visibleRange: visibleRangeInfo
-        ? `${visibleRangeInfo.startLineNumber}-${visibleRangeInfo.endLineNumber}`
-        : "none",
-      hasRecentEdits: recentEdits ? true : false,
-      question:
-        inputValue.substring(0, 50) + (inputValue.length > 50 ? "..." : ""),
-      model: selectedModel,
-    });
+    // Get context information from latexContext using the ref
+    const documentContent = latexContextRef.current.getCurrentDocument();
+    const cursorInfo = latexContextRef.current.getCurrentCursorInfo();
+    const visibleRangeInfo = latexContextRef.current.getVisibleRangeInfo();
+    const recentEdits = latexContextRef.current.getRecentEditsSummary();
 
     // Create a copy of chats
     const updatedChats = [...chats];
@@ -155,14 +144,16 @@ const AIChat: React.FC<AIChatProps> = ({
       // Get AI response using the askAIQuestion function with enhanced context
       const aiResponse = await askAIQuestion({
         question: inputValue,
-        documentContent: editorContent,
-        cursorPosition: cursorInfo?.offset,
-        previousMessages: previousMessages.slice(0, -1), // Exclude the message we just added
         model: selectedModel, // Pass the selected model
-        contextInfo: {
+        context: {
+          documentContent: documentContent,
+          cursorOffset: cursorInfo?.offset || 0,
           visibleContent: visibleRangeInfo?.content,
           recentEdits: recentEdits,
-          currentWord: cursorInfo?.wordAtPosition || undefined,
+          currentWord: cursorInfo?.wordAtPosition,
+        },
+        chatContext: {
+          previousMessages: previousMessages.slice(0, -1), // Exclude the message we just added
         },
       });
 

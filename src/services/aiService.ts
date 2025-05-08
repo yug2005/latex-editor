@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { EditChange } from "../utils/editGroupsTracking";
 
 // Define available OpenAI models
 export const AI_MODELS = {
@@ -27,20 +28,20 @@ console.log(
 );
 
 // Additional context information type
-export interface LatexContextInfo {
+export interface LatexContext {
+  documentContent: string;
+  cursorOffset: number;
+  prefix?: string; // Text before cursor on the current line
   visibleContent?: string;
-  recentEdits?: any;
+  recentEdits?: EditChange[];
   currentWord?: string;
   surroundingEnvironment?: string;
 }
 
 export interface AISuggestionOptions {
-  documentContent: string;
-  cursorPosition: number;
-  prefix?: string; // Text before cursor on the current line
+  context: LatexContext;
   maxTokens?: number;
   temperature?: number;
-  contextInfo?: LatexContextInfo; // New optional context information
 }
 
 /**
@@ -48,13 +49,13 @@ export interface AISuggestionOptions {
  */
 const analyzeContext = (
   content: string,
-  cursorPosition: number
+  cursorOffset: number
 ): {
   isCommand: boolean;
   contextType: "math" | "command" | "prose" | "environment";
 } => {
   // Get line and character before cursor
-  const beforeCursor = content.substring(0, cursorPosition);
+  const beforeCursor = content.substring(0, cursorOffset);
   const lines = beforeCursor.split("\n");
   const currentLine = lines[lines.length - 1] || "";
 
@@ -128,27 +129,20 @@ const analyzeContext = (
 export const getLatexSuggestions = async (
   options: AISuggestionOptions
 ): Promise<string> => {
-  console.log("[AIService] getLatexSuggestions called with options:", {
-    contentLength: options.documentContent.length,
-    cursorPosition: options.cursorPosition,
-    prefixLength: options.prefix?.length,
-    hasContextInfo: options.contextInfo ? true : false,
-  });
+  console.log(
+    "[AIService] getLatexSuggestions called with context:",
+    options.context
+  );
 
-  const {
-    documentContent,
-    cursorPosition,
-    maxTokens = 150,
-    temperature = 0.7,
-    contextInfo,
-  } = options;
+  const { context, maxTokens = 150, temperature = 0.7 } = options;
+  const { documentContent, cursorOffset, prefix } = context;
 
   // Get text before and after cursor to provide complete context
-  const contextBeforeCursor = documentContent.substring(0, cursorPosition);
-  const contextAfterCursor = documentContent.substring(cursorPosition);
+  const contextBeforeCursor = documentContent.substring(0, cursorOffset);
+  const contextAfterCursor = documentContent.substring(cursorOffset);
 
   // Analyze the context to determine what type of suggestion to provide
-  const contextAnalysis = analyzeContext(documentContent, cursorPosition);
+  const contextAnalysis = analyzeContext(documentContent, cursorOffset);
 
   // Set up appropriate system prompt based on context
   let systemPrompt = "";
@@ -168,25 +162,6 @@ For text paragraphs (not LaTeX commands), provide thoughtful, medium to long-len
 For text, focus on continuing the user's writing style, arguments, and thought process.`;
   }
 
-  // Add enhanced context information to the system prompt if available
-  if (contextInfo) {
-    systemPrompt += `\n\nAdditional context information:`;
-
-    if (contextInfo.currentWord) {
-      systemPrompt += `\n- The user is currently typing the word: "${contextInfo.currentWord}"`;
-    }
-
-    if (contextInfo.recentEdits) {
-      systemPrompt += `\n- Recent edits: ${JSON.stringify(
-        contextInfo.recentEdits
-      )}`;
-    }
-
-    if (contextInfo.surroundingEnvironment) {
-      systemPrompt += `\n- The cursor is within environment: ${contextInfo.surroundingEnvironment}`;
-    }
-  }
-
   try {
     console.log(
       "[AIService] Making API request with system prompt:",
@@ -204,19 +179,6 @@ For text, focus on continuing the user's writing style, arguments, and thought p
     let userMessage = `Complete this LaTeX at the cursor position marked by [CURSOR]. Consider both the text before and after the cursor for context. Only provide the suggested completion text (no explanations):
     
 ${contextBeforeCursor}[CURSOR]${contextAfterCursor}`;
-
-    // Add visible range context if available
-    if (contextInfo?.visibleContent) {
-      userMessage = `Complete this LaTeX at the cursor position marked by [CURSOR]. 
-The visible content around the cursor is:
-\`\`\`
-${contextInfo.visibleContent}
-\`\`\`
-
-Consider the full context including what's visible around the cursor. Only provide the suggested completion text (no explanations):
-    
-${contextBeforeCursor}[CURSOR]${contextAfterCursor}`;
-    }
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -253,15 +215,17 @@ ${contextBeforeCursor}[CURSOR]${contextAfterCursor}`;
   }
 };
 
+export interface ChatContext {
+  previousMessages?: Array<{ role: "user" | "assistant"; content: string }>;
+}
+
 export interface AIQuestionOptions {
   question: string;
-  documentContent: string;
-  cursorPosition?: number;
+  context: LatexContext;
+  chatContext: ChatContext;
   maxTokens?: number;
   temperature?: number;
-  previousMessages?: Array<{ role: "user" | "assistant"; content: string }>;
   model?: AIModelValue;
-  contextInfo?: LatexContextInfo;
 }
 
 /**
@@ -272,30 +236,27 @@ export const askAIQuestion = async (
 ): Promise<string> => {
   console.log("[AIService] askAIQuestion called with options:", {
     question: options.question,
-    contentLength: options.documentContent.length,
-    cursorPosition: options.cursorPosition,
-    hasHistory: options.previousMessages && options.previousMessages.length > 0,
+    context: options.context,
+    hasHistory: options.chatContext.previousMessages && options.chatContext.previousMessages.length > 0,
     model: options.model || "gpt-4o",
-    hasContextInfo: options.contextInfo ? true : false,
   });
 
   const {
     question,
-    documentContent,
-    cursorPosition,
+    context,
+    chatContext,
     maxTokens = 500,
     temperature = 0.7,
-    previousMessages = [],
     model = "gpt-4o", // Default to GPT-4o
-    contextInfo,
   } = options;
+  const { documentContent, cursorOffset } = context;
 
   // Extract the context around cursor position if provided
   let documentContext = documentContent;
-  if (cursorPosition !== undefined) {
+  if (cursorOffset !== undefined) {
     // Get text before and after cursor to provide focused context
-    const startPosition = Math.max(0, cursorPosition - 2000);
-    const endPosition = Math.min(documentContent.length, cursorPosition + 2000);
+    const startPosition = Math.max(0, cursorOffset - 2000);
+    const endPosition = Math.min(documentContent.length, cursorOffset + 2000);
     documentContext = documentContent.substring(startPosition, endPosition);
   }
 
@@ -327,9 +288,9 @@ Focus on providing practical, usable LaTeX code when appropriate.`;
     ];
 
     // Add previous conversation messages if they exist
-    if (previousMessages && previousMessages.length > 0) {
+    if (chatContext.previousMessages && chatContext.previousMessages.length > 0) {
       // Add previous messages to maintain conversation context
-      messages.push(...(previousMessages as ChatMessage[]));
+      messages.push(...(chatContext.previousMessages as ChatMessage[]));
     }
 
     // Prepare the context message with document content
@@ -339,31 +300,9 @@ Focus on providing practical, usable LaTeX code when appropriate.`;
 ${documentContext}
 \`\`\``;
 
-    // Enhanced context information if available
-    if (contextInfo) {
-      contextMessage += `\n\nAdditional context information:\n`;
-
-      if (
-        contextInfo.visibleContent &&
-        contextInfo.visibleContent !== documentContext
-      ) {
-        contextMessage += `\nThe currently visible content is:\n\`\`\`latex\n${contextInfo.visibleContent}\n\`\`\`\n`;
-      }
-
-      if (contextInfo.currentWord) {
-        contextMessage += `\nI'm currently working with the word: "${contextInfo.currentWord}"\n`;
-      }
-
-      if (contextInfo.recentEdits) {
-        contextMessage += `\nRecent edits: ${JSON.stringify(
-          contextInfo.recentEdits
-        )}\n`;
-      }
-    }
-
     // Add cursor position information if available
-    if (cursorPosition !== undefined) {
-      contextMessage += `\nMy cursor is currently at position ${cursorPosition}.`;
+    if (cursorOffset !== undefined) {
+      contextMessage += `\nMy cursor is currently at position ${cursorOffset}.`;
     }
 
     // Add the context message and the user's question

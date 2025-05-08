@@ -51,9 +51,8 @@ jest.mock("./components/LatexPreview", () => ({
 
 jest.mock("./components/AIChat", () => ({
   __esModule: true,
-  default: ({ onClose, editorContent, cursorPosition }: any) => (
+  default: ({ onClose }: any) => (
     <div data-testid="ai-chat">
-      <p data-testid="cursor-position">Cursor: {cursorPosition}</p>
       <button data-testid="close-chat" onClick={onClose}>
         Close
       </button>

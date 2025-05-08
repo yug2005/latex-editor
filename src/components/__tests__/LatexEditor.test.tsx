@@ -3,6 +3,39 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import LatexEditor from "../LatexEditor";
 import * as monaco from "monaco-editor";
 
+// Mock the LatexContextSystem component
+jest.mock("../LatexContextSystem", () => {
+  // Create a mock context with all the required functions
+  const mockContextValue = {
+    setCurrentModel: jest.fn(),
+    setCurrentEditor: jest.fn(),
+    getCurrentDocument: jest.fn().mockReturnValue(""),
+    getCurrentCursorInfo: jest.fn().mockReturnValue({
+      position: { lineNumber: 1, column: 5 },
+      offset: 5,
+      lineContent: "",
+      wordRange: null,
+      wordAtPosition: undefined,
+    }),
+    getVisibleRangeInfo: jest.fn().mockReturnValue({
+      startLineNumber: 1,
+      endLineNumber: 10,
+      content: "",
+    }),
+    getRecentEditsSummary: jest.fn().mockReturnValue([]),
+    updateCursorInfo: jest.fn(),
+    updateVisibleRange: jest.fn(),
+    processEditorContentChanges: jest.fn(),
+  };
+
+  // Provide a mock implementation for the useLatexContext hook
+  return {
+    __esModule: true,
+    default: ({ children }: { children: React.ReactNode }) => children,
+    useLatexContext: () => mockContextValue,
+  };
+});
+
 // Mock the monaco-editor/react
 jest.mock("@monaco-editor/react", () => ({
   __esModule: true,
@@ -25,6 +58,7 @@ jest.mock("@monaco-editor/react", () => ({
             onDidChangeCursorPosition: jest
               .fn()
               .mockReturnValue({ dispose: jest.fn() }),
+            onDidChangeModel: jest.fn().mockReturnValue({ dispose: jest.fn() }),
           };
           onMount(mockEditor);
           return mockEditor;

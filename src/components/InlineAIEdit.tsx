@@ -4,20 +4,17 @@ import { getLatexSuggestions } from "../services/aiService";
 import { loader } from "@monaco-editor/react";
 import { EditTracker } from "../utils/editGroupsTracking";
 
-interface InlineAISuggestionProps {
+interface InlineAIEditProps {
   editor: monaco.editor.IStandaloneCodeEditor | null;
 }
 
 // Delay before triggering suggestions (ms)
-const SUGGESTION_DELAY = 1000;
+const SUGGESTION_DELAY = 500;
 
 /**
  * Component that adds AI inline suggestion functionality to Monaco editor
  */
-const InlineAISuggestion: React.FC<InlineAISuggestionProps> = ({ editor }) => {
-  const [suggestionType, setSuggestionType] = useState<
-    "command" | "math" | "environment" | "prose"
-  >("prose");
+const InlineAIEdit = ({ editor }: InlineAIEditProps) => {
   const pendingSuggestionRef = useRef<string | null>(null);
   const inlineCompletionsProviderRef = useRef<monaco.IDisposable | null>(null);
 
@@ -40,55 +37,44 @@ const InlineAISuggestion: React.FC<InlineAISuggestionProps> = ({ editor }) => {
     loader.init().then((monaco) => {
       try {
         inlineCompletionsProviderRef.current =
-          monaco.languages.registerInlineCompletionsProvider("latex", {
-            provideInlineCompletions: async (
-              model,
-              position,
-              context,
-              token
-            ) => {
-              if (context.triggerKind === 0) {
-                // This is an auto trigger, so we don't want to show suggestions
-                console.log("[InlineAISuggestion] Skipping - auto trigger");
-                return { items: [] };
+          monaco.languages.registerInlineEditProvider("latex", {
+            provideInlineEdit: (model, context, token) => {
+              if (context.triggerKind === 1) {
+                console.log("[InlineAIEdit] Skipping - auto trigger");
+                return null;
               }
-
               if (!pendingSuggestionRef.current) {
-                return { items: [] };
+                return null;
               }
-
               const suggestion = pendingSuggestionRef.current;
-
-              const range = {
-                startLineNumber: position.lineNumber,
-                endLineNumber: position.lineNumber,
-                startColumn: position.column,
-                endColumn: position.column,
+              const position = editor.getPosition();
+              if (!position) return null;
+              return {
+                text: suggestion,
+                range: {
+                  startLineNumber: position.lineNumber,
+                  endLineNumber: position.lineNumber,
+                  startColumn: position.column,
+                  endColumn: position.column,
+                },
               };
-
-              return Promise.resolve({
-                items: [
-                  {
-                    insertText: suggestion,
-                    range: range,
-                  },
-                ],
-              });
             },
-            freeInlineCompletions: (args) => {},
+            freeInlineEdit: () => {},
           });
       } catch (err) {
         console.error(
-          "[InlineAISuggestion] Failed to register inline completions provider:",
+          "[InlineAIEdit] Failed to register inline edit provider:",
           err
         );
       }
     });
 
     // Trigger inline suggestions
-    const triggerInlineSuggestions = () => {
+    const triggerInlineEdit = () => {
       if (!editor || !pendingSuggestionRef.current) return;
-      editor.trigger("", "editor.action.inlineSuggest.trigger", {});
+      console.log("[InlineAIEdit] Triggering inline edit");
+      editor.trigger("", "editor.action.inlineEdit.reject", {});
+      editor.trigger("", "editor.action.inlineEdit.trigger", {});
     };
 
     // Fetch and show AI suggestions
@@ -113,30 +99,24 @@ const InlineAISuggestion: React.FC<InlineAISuggestionProps> = ({ editor }) => {
         const isInMiddleOfWord = (() => {
           if (position.column <= 1 || position.column > lineContent.length)
             return false;
-
           const charBefore = lineContent[position.column - 2]; // -2 because column is 1-indexed
           const charAfter = lineContent[position.column - 1]; // -1 for the same reason
-
           return /\w/.test(charBefore) && /\w/.test(charAfter);
         })();
 
-        // Skip if cursor is in the middle of a word
         if (isInMiddleOfWord) {
-          console.log(
-            "[InlineAISuggestion] Skipping - cursor in middle of word"
-          );
+          console.log("[InlineAIEdit] Skipping - cursor in middle of word");
           return;
         }
-
-        // Skip comments
         if (prefix.trimStart().startsWith("%")) {
-          console.log("[InlineAISuggestion] Skipping - comment line");
+          console.log("[InlineAIEdit] Skipping - comment line");
           return;
         }
 
         // Get recent changes from the EditTracker
         const recentChanges = editTrackerRef.current.getRecentChangesSummary();
 
+        const start = new Date();
         const suggestion = await getLatexSuggestions({
           documentContent,
           cursorPosition: cursorOffset,
@@ -145,38 +125,24 @@ const InlineAISuggestion: React.FC<InlineAISuggestionProps> = ({ editor }) => {
           // When API supports it, uncomment this line and pass the actual changes
           // recentChanges
         });
+        console.log(
+          `[InlineAIEdit] Suggestion took ${
+            new Date().getTime() - start.getTime()
+          }ms`
+        );
 
         if (suggestion && suggestion.length > 0) {
-          // Set the suggestion type (for potential styling)
-          if (prefix.includes("\\") && !prefix.includes("{")) {
-            setSuggestionType("command");
-          } else if (
-            prefix.includes("$") ||
-            prefix.includes("\\begin{equation}") ||
-            prefix.includes("\\begin{align}")
-          ) {
-            setSuggestionType("math");
-          } else if (prefix.includes("\\begin{")) {
-            setSuggestionType("environment");
-          } else {
-            setSuggestionType("prose");
-          }
-
           // Store and show the suggestion
           pendingSuggestionRef.current = suggestion;
-          triggerInlineSuggestions();
+          triggerInlineEdit();
         }
       } catch (error) {
-        console.error(
-          "[InlineAISuggestion] Error updating suggestions:",
-          error
-        );
+        console.error("[InlineAIEdit] Error updating suggestions:", error);
       } finally {
         isFetchingSuggestion = false;
       }
     };
 
-    // Set up event handlers
     const onDidChangeModelContent = (
       event: monaco.editor.IModelContentChangedEvent
     ) => {
@@ -189,37 +155,23 @@ const InlineAISuggestion: React.FC<InlineAISuggestionProps> = ({ editor }) => {
           "[ChangeTracking] Current edit groups:",
           editTrackerRef.current.getEditGroups().map((group) => ({
             type: group.type,
-            insertedText:
-              group.insertedText.length > 50
-                ? `${group.insertedText.substring(0, 50)}... (${
-                    group.insertedText.length
-                  } chars)`
-                : group.insertedText,
-            deletedText:
-              group.deletedText.length > 50
-                ? `${group.deletedText.substring(0, 50)}... (${
-                    group.deletedText.length
-                  } chars)`
-                : group.deletedText,
+            insertedText: group.insertedText,
+            deletedText: group.deletedText,
             operations: group.operations.length,
             duration: group.endTime - group.startTime,
           }))
         );
       }
 
-      // Handle suggestions
       if (suggestionTimer) clearTimeout(suggestionTimer);
-      editor.trigger("", "editor.action.inlineSuggest.hide", {});
       suggestionTimer = setTimeout(updateAISuggestions, SUGGESTION_DELAY);
     };
 
     const onDidChangeCursorPosition = () => {
       if (suggestionTimer) clearTimeout(suggestionTimer);
-      editor.trigger("", "editor.action.inlineSuggest.hide", {});
       suggestionTimer = setTimeout(updateAISuggestions, SUGGESTION_DELAY);
     };
 
-    // Register event handlers
     const contentDisposable = editor.onDidChangeModelContent(
       onDidChangeModelContent
     );
@@ -228,7 +180,6 @@ const InlineAISuggestion: React.FC<InlineAISuggestionProps> = ({ editor }) => {
     );
 
     return () => {
-      // Clean up
       contentDisposable.dispose();
       cursorDisposable.dispose();
       if (inlineCompletionsProviderRef.current) {
@@ -237,11 +188,10 @@ const InlineAISuggestion: React.FC<InlineAISuggestionProps> = ({ editor }) => {
       if (suggestionTimer) {
         clearTimeout(suggestionTimer);
       }
-      // EditTracker doesn't need cleanup
     };
-  }, [editor, suggestionType]);
+  }, [editor]);
 
-  return null; // No UI
+  return null;
 };
 
-export default InlineAISuggestion;
+export default InlineAIEdit;

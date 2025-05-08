@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Editor } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import { initializeMonaco } from "../utils/monacoConfig";
-import InlineAISuggestion from "./InlineAISuggestion";
+import InlineAIEdit from "./InlineAIEdit";
 
 interface LatexEditorProps {
   value: string;
@@ -194,15 +194,14 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
             renderWhitespace: readOnly ? "none" : "none",
             renderControlCharacters: !readOnly,
             fixedOverflowWidgets: true,
-            inlineSuggest: {
+            experimentalInlineEdit: {
               enabled: true,
-              mode: "subwordSmart",
               showToolbar: "always",
             },
           }}
         />
       </div>
-      {aiEnabled && !readOnly && <InlineAISuggestion editor={editorInstance} />}
+      {aiEnabled && !readOnly && <InlineAIEdit editor={editorInstance} />}
     </div>
   );
 };

@@ -171,7 +171,7 @@ For text, focus on continuing the user's writing style, arguments, and thought p
     }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",

@@ -37,8 +37,8 @@ jest.mock("@monaco-editor/react", () => ({
   ),
 }));
 
-// Mock InlineAISuggestion component
-jest.mock("../InlineAISuggestion", () => ({
+// Mock InlineAIEdit component
+jest.mock("../InlineAIEdit", () => ({
   __esModule: true,
   default: ({ editor }: any) => (
     <div data-testid="mock-ai-suggestion">

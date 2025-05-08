@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import * as monaco from "monaco-editor";
 import { getLatexSuggestions } from "../services/aiService";
 import { loader } from "@monaco-editor/react";
-import { EditTracker } from "../utils/editGroupsTracking";
+import { useLatexContext } from "./LatexContextSystem";
 
 interface InlineAIEditProps {
   editor: monaco.editor.IStandaloneCodeEditor | null;
@@ -18,16 +18,11 @@ const InlineAIEdit = ({ editor }: InlineAIEditProps) => {
   const pendingSuggestionRef = useRef<string | null>(null);
   const inlineCompletionsProviderRef = useRef<monaco.IDisposable | null>(null);
 
-  // Use a ref for the EditTracker so it persists between renders
-  const editTrackerRef = useRef<EditTracker | null>(null);
+  // Use the Latex Context
+  const latexContext = useLatexContext();
 
   useEffect(() => {
     if (!editor) return;
-
-    // Initialize the EditTracker if it doesn't exist
-    if (!editTrackerRef.current) {
-      editTrackerRef.current = new EditTracker(editor);
-    }
 
     // Track when to fetch suggestions to avoid too many API calls
     let suggestionTimer: NodeJS.Timeout | null = null;
@@ -79,51 +74,44 @@ const InlineAIEdit = ({ editor }: InlineAIEditProps) => {
 
     // Fetch and show AI suggestions
     const updateAISuggestions = async () => {
-      if (!editor || isFetchingSuggestion || !editTrackerRef.current) return;
-
+      if (!editor || isFetchingSuggestion) return;
       isFetchingSuggestion = true;
       try {
-        const position = editor.getPosition();
-        if (!position) return;
+        // Get context information from LatexContext
+        const cursorInfo = latexContext.getCurrentCursorInfo();
+        const visibleRangeInfo = latexContext.getVisibleRangeInfo();
+        const recentEdits = latexContext.getRecentEditsSummary();
+
+        // Skip if essential cursor info is missing
+        if (!cursorInfo || !cursorInfo.position) return;
 
         const model = editor.getModel();
         if (!model) return;
 
-        // Get current content and context
+        // Get document content and cursor position from model
         const documentContent = model.getValue();
-        const cursorOffset = model.getOffsetAt(position);
-        const lineContent = model.getLineContent(position.lineNumber);
-        const prefix = lineContent.substring(0, position.column - 1);
+        const cursorOffset = cursorInfo.offset;
+        const lineContent = cursorInfo.lineContent;
+        const prefix = lineContent.substring(0, cursorInfo.position.column - 1);
 
-        // Check if cursor is in the middle of a word
-        const isInMiddleOfWord = (() => {
-          if (position.column <= 1 || position.column > lineContent.length)
-            return false;
-          const charBefore = lineContent[position.column - 2]; // -2 because column is 1-indexed
-          const charAfter = lineContent[position.column - 1]; // -1 for the same reason
-          return /\w/.test(charBefore) && /\w/.test(charAfter);
-        })();
-
-        if (isInMiddleOfWord) {
-          console.log("[InlineAIEdit] Skipping - cursor in middle of word");
-          return;
-        }
-        if (prefix.trimStart().startsWith("%")) {
-          console.log("[InlineAIEdit] Skipping - comment line");
-          return;
-        }
-
-        // Get recent changes from the EditTracker
-        const recentChanges = editTrackerRef.current.getRecentChangesSummary();
+        console.log("[InlineAIEdit] Context for suggestion:", {
+          cursorPosition: cursorOffset,
+          visibleRange: visibleRangeInfo
+            ? `${visibleRangeInfo.startLineNumber}-${visibleRangeInfo.endLineNumber}`
+            : "none",
+          hasRecentEdits: recentEdits ? true : false,
+        });
 
         const start = new Date();
         const suggestion = await getLatexSuggestions({
           documentContent,
           cursorPosition: cursorOffset,
           prefix,
-          // We'll pass recentChanges in a comment for now until the API supports it
-          // When API supports it, uncomment this line and pass the actual changes
-          // recentChanges
+          contextInfo: {
+            visibleContent: visibleRangeInfo?.content,
+            recentEdits: recentEdits,
+            currentWord: cursorInfo.wordAtPosition || undefined,
+          },
         });
         console.log(
           `[InlineAIEdit] Suggestion took ${
@@ -143,45 +131,50 @@ const InlineAIEdit = ({ editor }: InlineAIEditProps) => {
       }
     };
 
+    // Set up event listeners that will update the context
+    const onDidChangeCursorPosition = () => {
+      // Update cursor info in the context
+      latexContext.updateCursorInfo();
+
+      // Schedule suggestion update
+      if (suggestionTimer) clearTimeout(suggestionTimer);
+      suggestionTimer = setTimeout(updateAISuggestions, SUGGESTION_DELAY);
+    };
+
+    // Listen for scroll events to update visible range
+    const onDidScrollChange = () => {
+      latexContext.updateVisibleRange();
+    };
+
+    // Listen for content changes
     const onDidChangeModelContent = (
       event: monaco.editor.IModelContentChangedEvent
     ) => {
-      // Process edit operations and update edit groups using the EditTracker
-      if (editTrackerRef.current) {
-        editTrackerRef.current.processEditorContentChanges(event);
+      // Process content changes for tracking edits
+      latexContext.processEditorContentChanges(event);
 
-        // Log edit groups for testing
-        console.log(
-          "[ChangeTracking] Current edit groups:",
-          editTrackerRef.current.getEditGroups().map((group) => ({
-            type: group.type,
-            insertedText: group.insertedText,
-            deletedText: group.deletedText,
-            operations: group.operations.length,
-            duration: group.endTime - group.startTime,
-          }))
-        );
-      }
+      // Update cursor and visible range info
+      latexContext.updateCursorInfo();
+      latexContext.updateVisibleRange();
 
+      // Schedule suggestion update
       if (suggestionTimer) clearTimeout(suggestionTimer);
       suggestionTimer = setTimeout(updateAISuggestions, SUGGESTION_DELAY);
     };
 
-    const onDidChangeCursorPosition = () => {
-      if (suggestionTimer) clearTimeout(suggestionTimer);
-      suggestionTimer = setTimeout(updateAISuggestions, SUGGESTION_DELAY);
-    };
-
-    const contentDisposable = editor.onDidChangeModelContent(
-      onDidChangeModelContent
-    );
     const cursorDisposable = editor.onDidChangeCursorPosition(
       onDidChangeCursorPosition
     );
+    const scrollDisposable = editor.onDidScrollChange(onDidScrollChange);
+    const contentDisposable = editor.onDidChangeModelContent(
+      onDidChangeModelContent
+    );
 
     return () => {
-      contentDisposable.dispose();
+      // Clean up all event listeners
       cursorDisposable.dispose();
+      scrollDisposable.dispose();
+      contentDisposable.dispose();
       if (inlineCompletionsProviderRef.current) {
         inlineCompletionsProviderRef.current.dispose();
       }
@@ -189,7 +182,7 @@ const InlineAIEdit = ({ editor }: InlineAIEditProps) => {
         clearTimeout(suggestionTimer);
       }
     };
-  }, [editor]);
+  }, [editor, latexContext]);
 
   return null;
 };

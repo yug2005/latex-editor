@@ -6,6 +6,7 @@ import AIChat from "./components/AIChat";
 import { EXAMPLE_DOCUMENT, DEFAULT_DOCUMENT } from "./assets/exampleDocument";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import * as monaco from "monaco-editor";
+import LatexContextSystem from "./components/LatexContextSystem";
 
 declare global {
   interface Window {
@@ -127,56 +128,36 @@ const App = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-neutral-50 dark:bg-[#202020]">
-      <div className="flex justify-between items-center p-2 bg-neutral-800 text-white dark:bg-[#181818]">
-        <div className="flex items-center space-x-2">
-          <button
-            className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-1 px-3 rounded text-sm"
-            onClick={newFile}
-          >
-            New
-          </button>
-          <button
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm"
-            onClick={openFile}
-          >
-            Open
-          </button>
-          <button
-            className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-3 rounded text-sm"
-            onClick={saveFile}
-          >
-            Save
-          </button>
-          <button
-            className={`${
-              isChatOpen
-                ? "bg-indigo-500 hover:bg-indigo-700"
-                : "bg-neutral-500 hover:bg-neutral-700"
-            } text-white font-bold py-1 px-3 rounded text-sm flex items-center`}
-            onClick={toggleChat}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="mr-1"
+    <LatexContextSystem>
+      <div className="flex flex-col h-screen bg-neutral-50 dark:bg-[#202020]">
+        <div className="flex justify-between items-center p-2 bg-neutral-800 text-white dark:bg-[#181818]">
+          <div className="flex items-center space-x-2">
+            <button
+              className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-1 px-3 rounded text-sm"
+              onClick={newFile}
             >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-            Chat
-          </button>
-          <button
-            className={`bg-amber-500 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded text-sm flex items-center`}
-            onClick={toggleDarkMode}
-          >
-            {darkMode ? (
+              New
+            </button>
+            <button
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm"
+              onClick={openFile}
+            >
+              Open
+            </button>
+            <button
+              className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-3 rounded text-sm"
+              onClick={saveFile}
+            >
+              Save
+            </button>
+            <button
+              className={`${
+                isChatOpen
+                  ? "bg-indigo-500 hover:bg-indigo-700"
+                  : "bg-neutral-500 hover:bg-neutral-700"
+              } text-white font-bold py-1 px-3 rounded text-sm flex items-center`}
+              onClick={toggleChat}
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="16"
@@ -189,88 +170,112 @@ const App = () => {
                 strokeLinejoin="round"
                 className="mr-1"
               >
-                <circle cx="12" cy="12" r="5"></circle>
-                <line x1="12" y1="1" x2="12" y2="3"></line>
-                <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
               </svg>
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mr-1"
-              >
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-              </svg>
-            )}
-            {darkMode ? "Light" : "Dark"}
-          </button>
-        </div>
-        <div className="text-sm truncate max-w-md">{displayFileName}</div>
-        <div className="text-xs text-neutral-300">AI-powered LaTeX Editor</div>
-      </div>
-
-      <div
-        className="flex-grow overflow-hidden"
-        style={{ height: "calc(100vh - 40px)" }}
-      >
-        <PanelGroup direction="horizontal" className="h-full">
-          <Panel defaultSize={50} minSize={25}>
-            <PanelGroup direction="vertical" className="h-full">
-              <Panel
-                defaultSize={isChatOpen ? 70 : 100}
-                minSize={30}
-                className="overflow-hidden"
-              >
-                <div className="h-full flex flex-col">
-                  <LatexEditor
-                    value={content}
-                    onChange={setContent}
-                    height="100%"
-                    onEditorDidMount={handleEditorDidMount}
-                  />
-                </div>
-              </Panel>
-
-              {isChatOpen && (
-                <>
-                  <VerticalResizeHandle />
-                  <Panel
-                    defaultSize={30}
-                    minSize={25}
-                    className="overflow-hidden"
-                  >
-                    <AIChat
-                      onClose={toggleChat}
-                      editorContent={content}
-                      cursorPosition={cursorPosition}
-                    />
-                  </Panel>
-                </>
+              Chat
+            </button>
+            <button
+              className={`bg-amber-500 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded text-sm flex items-center`}
+              onClick={toggleDarkMode}
+            >
+              {darkMode ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mr-1"
+                >
+                  <circle cx="12" cy="12" r="5"></circle>
+                  <line x1="12" y1="1" x2="12" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="23"></line>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                  <line x1="1" y1="12" x2="3" y2="12"></line>
+                  <line x1="21" y1="12" x2="23" y2="12"></line>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mr-1"
+                >
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
               )}
-            </PanelGroup>
-          </Panel>
+              {darkMode ? "Light" : "Dark"}
+            </button>
+          </div>
+          <div className="text-sm truncate max-w-md">{displayFileName}</div>
+          <div className="text-xs text-neutral-300">
+            AI-powered LaTeX Editor
+          </div>
+        </div>
 
-          <ResizeHandle />
+        <div
+          className="flex-grow overflow-hidden"
+          style={{ height: "calc(100vh - 40px)" }}
+        >
+          <PanelGroup direction="horizontal" className="h-full">
+            <Panel defaultSize={50} minSize={25}>
+              <PanelGroup direction="vertical" className="h-full">
+                <Panel
+                  defaultSize={isChatOpen ? 70 : 100}
+                  minSize={30}
+                  className="overflow-hidden"
+                >
+                  <div className="h-full flex flex-col">
+                    <LatexEditor
+                      value={content}
+                      onChange={setContent}
+                      height="100%"
+                      onEditorDidMount={handleEditorDidMount}
+                    />
+                  </div>
+                </Panel>
 
-          <Panel minSize={25} className="overflow-hidden">
-            <LatexPreview content={content} />
-          </Panel>
-        </PanelGroup>
+                {isChatOpen && (
+                  <>
+                    <VerticalResizeHandle />
+                    <Panel
+                      defaultSize={30}
+                      minSize={25}
+                      className="overflow-hidden"
+                    >
+                      <AIChat
+                        onClose={toggleChat}
+                        editorContent={content}
+                        cursorPosition={cursorPosition}
+                      />
+                    </Panel>
+                  </>
+                )}
+              </PanelGroup>
+            </Panel>
+
+            <ResizeHandle />
+
+            <Panel minSize={25} className="overflow-hidden">
+              <LatexPreview content={content} />
+            </Panel>
+          </PanelGroup>
+        </div>
       </div>
-    </div>
+    </LatexContextSystem>
   );
 };
 

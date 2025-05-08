@@ -26,12 +26,21 @@ console.log(
   process.env.REACT_APP_OPENAI_API_KEY ? "API key exists" : "Missing API key"
 );
 
+// Additional context information type
+export interface LatexContextInfo {
+  visibleContent?: string;
+  recentEdits?: any;
+  currentWord?: string;
+  surroundingEnvironment?: string;
+}
+
 export interface AISuggestionOptions {
   documentContent: string;
   cursorPosition: number;
   prefix?: string; // Text before cursor on the current line
   maxTokens?: number;
   temperature?: number;
+  contextInfo?: LatexContextInfo; // New optional context information
 }
 
 /**
@@ -123,6 +132,7 @@ export const getLatexSuggestions = async (
     contentLength: options.documentContent.length,
     cursorPosition: options.cursorPosition,
     prefixLength: options.prefix?.length,
+    hasContextInfo: options.contextInfo ? true : false,
   });
 
   const {
@@ -130,6 +140,7 @@ export const getLatexSuggestions = async (
     cursorPosition,
     maxTokens = 150,
     temperature = 0.7,
+    contextInfo,
   } = options;
 
   // Get text before and after cursor to provide complete context
@@ -157,6 +168,25 @@ For text paragraphs (not LaTeX commands), provide thoughtful, medium to long-len
 For text, focus on continuing the user's writing style, arguments, and thought process.`;
   }
 
+  // Add enhanced context information to the system prompt if available
+  if (contextInfo) {
+    systemPrompt += `\n\nAdditional context information:`;
+
+    if (contextInfo.currentWord) {
+      systemPrompt += `\n- The user is currently typing the word: "${contextInfo.currentWord}"`;
+    }
+
+    if (contextInfo.recentEdits) {
+      systemPrompt += `\n- Recent edits: ${JSON.stringify(
+        contextInfo.recentEdits
+      )}`;
+    }
+
+    if (contextInfo.surroundingEnvironment) {
+      systemPrompt += `\n- The cursor is within environment: ${contextInfo.surroundingEnvironment}`;
+    }
+  }
+
   try {
     console.log(
       "[AIService] Making API request with system prompt:",
@@ -170,6 +200,24 @@ For text, focus on continuing the user's writing style, arguments, and thought p
       return "⚠️ API key missing";
     }
 
+    // Build the user message with enhanced context
+    let userMessage = `Complete this LaTeX at the cursor position marked by [CURSOR]. Consider both the text before and after the cursor for context. Only provide the suggested completion text (no explanations):
+    
+${contextBeforeCursor}[CURSOR]${contextAfterCursor}`;
+
+    // Add visible range context if available
+    if (contextInfo?.visibleContent) {
+      userMessage = `Complete this LaTeX at the cursor position marked by [CURSOR]. 
+The visible content around the cursor is:
+\`\`\`
+${contextInfo.visibleContent}
+\`\`\`
+
+Consider the full context including what's visible around the cursor. Only provide the suggested completion text (no explanations):
+    
+${contextBeforeCursor}[CURSOR]${contextAfterCursor}`;
+    }
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -179,9 +227,7 @@ For text, focus on continuing the user's writing style, arguments, and thought p
         },
         {
           role: "user",
-          content: `Complete this LaTeX at the cursor position marked by [CURSOR]. Consider both the text before and after the cursor for context. Only provide the suggested completion text (no explanations):
-          
-${contextBeforeCursor}[CURSOR]${contextAfterCursor}`,
+          content: userMessage,
         },
       ],
       max_tokens:
@@ -215,6 +261,7 @@ export interface AIQuestionOptions {
   temperature?: number;
   previousMessages?: Array<{ role: "user" | "assistant"; content: string }>;
   model?: AIModelValue;
+  contextInfo?: LatexContextInfo;
 }
 
 /**
@@ -229,6 +276,7 @@ export const askAIQuestion = async (
     cursorPosition: options.cursorPosition,
     hasHistory: options.previousMessages && options.previousMessages.length > 0,
     model: options.model || "gpt-4o",
+    hasContextInfo: options.contextInfo ? true : false,
   });
 
   const {
@@ -239,6 +287,7 @@ export const askAIQuestion = async (
     temperature = 0.7,
     previousMessages = [],
     model = "gpt-4o", // Default to GPT-4o
+    contextInfo,
   } = options;
 
   // Extract the context around cursor position if provided
@@ -248,122 +297,108 @@ export const askAIQuestion = async (
     const startPosition = Math.max(0, cursorPosition - 2000);
     const endPosition = Math.min(documentContent.length, cursorPosition + 2000);
     documentContext = documentContent.substring(startPosition, endPosition);
-
-    // Log detailed cursor position information
-    console.log("[AIService] Using cursor context:", {
-      documentLength: documentContent.length,
-      cursorPosition,
-      contextWindowStart: startPosition,
-      contextWindowEnd: endPosition,
-      contextLength: documentContext.length,
-      textAtCursor: documentContent.substring(
-        Math.max(0, cursorPosition - 20),
-        Math.min(documentContent.length, cursorPosition + 20)
-      ),
-    });
   }
 
-  const systemPrompt = `You are a helpful LaTeX and document editing assistant.
-Answer questions about LaTeX, document structure, content, or provide suggestions based on the document context.
-Be concise, accurate, and directly address the user's question.
-Always format your responses using markdown, including proper formatting for code blocks, headings, lists, and other elements.`;
+  const systemPrompt = `You are an expert LaTeX assistant helping users with their LaTeX documents. 
+You can provide detailed explanations, fix issues, and give examples on how to use LaTeX effectively.
+Your answers should be clear, technically accurate, and tailored to help the user solve their specific problem.
+Focus on providing practical, usable LaTeX code when appropriate.`;
 
   try {
-    console.log(
-      "[AIService] Making AI question API request with context length:",
-      documentContext.length,
-      "and previous messages:",
-      previousMessages.length
-    );
-
     if (!process.env.REACT_APP_OPENAI_API_KEY) {
       console.error(
         "[AIService] No API key found. Please set REACT_APP_OPENAI_API_KEY in .env file"
       );
-      return "⚠️ API key missing";
+      return "⚠️ API key missing. Please set up your OpenAI API key in the .env file.";
     }
 
-    // Build the messages array for the API call
-    const messages: Array<{
+    // Define the message type explicitly
+    type ChatMessage = {
       role: "system" | "user" | "assistant";
       content: string;
-    }> = [
+    };
+
+    // Build messages including context and history
+    const messages: ChatMessage[] = [
       {
         role: "system",
         content: systemPrompt,
       },
     ];
 
-    // Add document context as a system message if available
-    if (documentContext.trim()) {
-      messages.push({
-        role: "system",
-        content: `Document context:\n\n${documentContext}`,
-      });
+    // Add previous conversation messages if they exist
+    if (previousMessages && previousMessages.length > 0) {
+      // Add previous messages to maintain conversation context
+      messages.push(...(previousMessages as ChatMessage[]));
     }
 
-    // Add previous conversation history
-    if (previousMessages.length > 0) {
-      messages.push(...previousMessages);
+    // Prepare the context message with document content
+    let contextMessage = `I'm working on this LaTeX document:
+
+\`\`\`latex
+${documentContext}
+\`\`\``;
+
+    // Enhanced context information if available
+    if (contextInfo) {
+      contextMessage += `\n\nAdditional context information:\n`;
+
+      if (
+        contextInfo.visibleContent &&
+        contextInfo.visibleContent !== documentContext
+      ) {
+        contextMessage += `\nThe currently visible content is:\n\`\`\`latex\n${contextInfo.visibleContent}\n\`\`\`\n`;
+      }
+
+      if (contextInfo.currentWord) {
+        contextMessage += `\nI'm currently working with the word: "${contextInfo.currentWord}"\n`;
+      }
+
+      if (contextInfo.recentEdits) {
+        contextMessage += `\nRecent edits: ${JSON.stringify(
+          contextInfo.recentEdits
+        )}\n`;
+      }
     }
 
-    // Add the current question
-    messages.push({
-      role: "user",
-      content: question,
+    // Add cursor position information if available
+    if (cursorPosition !== undefined) {
+      contextMessage += `\nMy cursor is currently at position ${cursorPosition}.`;
+    }
+
+    // Add the context message and the user's question
+    messages.push(
+      {
+        role: "user",
+        content: contextMessage,
+      },
+      {
+        role: "user",
+        content: question,
+      }
+    );
+
+    console.log(
+      "[AIService] Sending request to OpenAI with model:",
+      model,
+      "and messages count:",
+      messages.length
+    );
+
+    const response = await openai.chat.completions.create({
+      model,
+      messages,
+      max_tokens: maxTokens,
+      temperature,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
     });
 
-    // Check if the model is a new reasoning model that uses different parameters
-    const isReasoningModel = model === "o1" || model === "o3-mini";
-
-    // Create the request options based on the model type
-    let requestOptions;
-
-    if (isReasoningModel) {
-      // For o1 and o3-mini models, use minimal parameters since many standard ones aren't supported
-      requestOptions = {
-        model: model,
-        messages: messages,
-        // These models may not support additional parameters, so we're providing just the essentials
-      };
-    } else if (model === "gpt-4.5-preview") {
-      // For preview models, they might have different parameter requirements
-      requestOptions = {
-        model: model,
-        messages: messages,
-        max_tokens: maxTokens,
-        temperature: temperature,
-      };
-    } else {
-      // For standard GPT models
-      requestOptions = {
-        model: model,
-        messages: messages,
-        max_tokens: maxTokens,
-        temperature: temperature,
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0.3,
-      };
-    }
-
-    console.log(
-      "[AIService] Request options for model",
-      model,
-      ":",
-      JSON.stringify(requestOptions, null, 2)
-    );
-
-    const response = await openai.chat.completions.create(requestOptions);
-
     const answer = response.choices[0]?.message.content || "";
-    console.log(
-      "[AIService] Received answer from model " + model + ":",
-      answer.substring(0, 100) + (answer.length > 100 ? "..." : "")
-    );
     return answer;
   } catch (error) {
-    console.error("[AIService] Error getting AI answer:", error);
+    console.error("[AIService] Error in askAIQuestion:", error);
     return `⚠️ Error: ${
       error instanceof Error ? error.message : "Unknown error"
     }`;

@@ -3,6 +3,7 @@ import { Editor } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import { initializeMonaco } from "../utils/monacoConfig";
 import InlineAIEdit from "./InlineAIEdit";
+import { useLatexContext } from "./LatexContextSystem";
 
 interface LatexEditorProps {
   value: string;
@@ -29,6 +30,9 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
     useState<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [aiEnabled, setAiEnabled] = useState<boolean>(true);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+
+  // Access the context
+  const latexContext = useLatexContext();
 
   useEffect(() => {
     initializeMonaco();
@@ -60,6 +64,31 @@ const LatexEditor: React.FC<LatexEditorProps> = ({
       observer.disconnect();
     };
   }, []);
+
+  // Effect to update model in context when editor changes
+  useEffect(() => {
+    if (!editorInstance) return;
+
+    // Initialize the context with the editor
+    latexContext.setCurrentEditor(editorInstance);
+
+    // Get and set the model
+    const model = editorInstance.getModel();
+    if (model) {
+      latexContext.setCurrentModel(model);
+    }
+
+    // Update context when the model changes
+    const modelChangeDisposable = editorInstance.onDidChangeModel(() => {
+      const newModel = editorInstance.getModel();
+      latexContext.setCurrentModel(newModel);
+      console.log("[LatexEditor] Model changed in editor");
+    });
+
+    return () => {
+      modelChangeDisposable.dispose();
+    };
+  }, [editorInstance]);
 
   const handleEditorDidMount = useCallback(
     (editor: monaco.editor.IStandaloneCodeEditor) => {

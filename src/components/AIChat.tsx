@@ -1,13 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
-import {
-  askAIQuestion,
-  AI_MODELS,
-  AIModelValue,
-} from "../services/aiService";
+import { askAIQuestion, AI_MODELS, AIModelValue } from "../services/aiService";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github.css";
 import LatexEditor from "./LatexEditor";
+import { useLatexContext } from "./LatexContextSystem";
 
 interface Message {
   id: string;
@@ -46,6 +43,9 @@ const AIChat: React.FC<AIChatProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<AIModelValue>("gpt-4o");
+
+  // Access the Latex Context
+  const latexContext = useLatexContext();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -100,10 +100,19 @@ const AIChat: React.FC<AIChatProps> = ({
   const sendMessage = async () => {
     if (!inputValue.trim()) return;
 
-    // Log cursor position and editor content length for verification
+    // Get context information from latexContext
+    const cursorInfo = latexContext.getCurrentCursorInfo();
+    const visibleRangeInfo = latexContext.getVisibleRangeInfo();
+    const recentEdits = latexContext.getRecentEditsSummary();
+
+    // Log enhanced context information
     console.log("[AIChat] Sending message with context:", {
-      cursorPosition,
+      cursorPosition: cursorInfo?.offset,
       editorContentLength: editorContent.length,
+      visibleRange: visibleRangeInfo
+        ? `${visibleRangeInfo.startLineNumber}-${visibleRangeInfo.endLineNumber}`
+        : "none",
+      hasRecentEdits: recentEdits ? true : false,
       question:
         inputValue.substring(0, 50) + (inputValue.length > 50 ? "..." : ""),
       model: selectedModel,
@@ -143,13 +152,18 @@ const AIChat: React.FC<AIChatProps> = ({
         })
       );
 
-      // Get AI response using the askAIQuestion function with previous messages
+      // Get AI response using the askAIQuestion function with enhanced context
       const aiResponse = await askAIQuestion({
         question: inputValue,
         documentContent: editorContent,
-        cursorPosition: cursorPosition,
+        cursorPosition: cursorInfo?.offset,
         previousMessages: previousMessages.slice(0, -1), // Exclude the message we just added
         model: selectedModel, // Pass the selected model
+        contextInfo: {
+          visibleContent: visibleRangeInfo?.content,
+          recentEdits: recentEdits,
+          currentWord: cursorInfo?.wordAtPosition || undefined,
+        },
       });
 
       const assistantMessage: Message = {

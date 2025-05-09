@@ -7,6 +7,8 @@ import React, {
   useEffect,
 } from "react";
 import * as monaco from "monaco-editor";
+import { latexParser } from "latex-utensils";
+import { LatexNode, parseLatex } from "../utils/latexAST";
 import { EditChange, EditTracker } from "../utils/editGroupsTracking";
 
 // Structure for cursor information
@@ -32,13 +34,16 @@ interface LatexContextType {
   setCurrentEditor: (
     editor: monaco.editor.IStandaloneCodeEditor | null
   ) => void;
-  getCurrentDocument: () => string;
+  getCurrentDocument: () => string | undefined;
+  getCurrentDocumentAST: () => latexParser.LatexAst | undefined;
+  getCurrentNode: () => LatexNode | null;
   getCurrentCursorInfo: () => CursorInfo | null;
   getVisibleRangeInfo: () => VisibleRangeInfo | null;
   getRecentEditsSummary: () => EditChange[];
   // Make the update functions public
   updateCursorInfo: () => void;
   updateVisibleRange: () => void;
+  updateDocumentAST: () => void;
   processEditorContentChanges: (
     event: monaco.editor.IModelContentChangedEvent
   ) => void;
@@ -66,7 +71,6 @@ interface LatexContextProviderProps {
 export const LatexContextProvider: React.FC<LatexContextProviderProps> = ({
   children,
 }) => {
-  // Private state - not directly exposed in the context
   const [currentModel, setCurrentModel] =
     useState<monaco.editor.ITextModel | null>(null);
   const [currentEditor, setCurrentEditor] =
@@ -75,6 +79,8 @@ export const LatexContextProvider: React.FC<LatexContextProviderProps> = ({
   const [visibleRange, setVisibleRange] = useState<VisibleRangeInfo | null>(
     null
   );
+  const [documentAST, setDocumentAST] = useState<latexParser.LatexAst>();
+  const [currentNode, setCurrentNode] = useState<LatexNode | null>(null);
 
   // Track edit history
   const editTrackerRef = useRef<EditTracker | null>(null);
@@ -91,6 +97,7 @@ export const LatexContextProvider: React.FC<LatexContextProviderProps> = ({
     // Initial updates
     updateCursorInfo();
     updateVisibleRange();
+    updateDocumentAST();
   }, [currentEditor, currentModel]);
 
   // Function to update cursor information - now publicly accessible
@@ -124,8 +131,6 @@ export const LatexContextProvider: React.FC<LatexContextProviderProps> = ({
       wordRange: wordRange,
       wordAtPosition: wordInfo ? wordInfo.word : undefined,
     });
-
-    console.log("[LatexContext] Cursor position updated:", offset);
   };
 
   // Function to update visible range - now publicly accessible
@@ -145,14 +150,55 @@ export const LatexContextProvider: React.FC<LatexContextProviderProps> = ({
         endLineNumber: range.endLineNumber,
         content,
       });
-      console.log(
-        "[LatexContext] Visible range updated:",
-        `${range.startLineNumber}-${range.endLineNumber}`
-      );
     } catch (error) {
       console.error("[LatexContext] Error getting visible range:", error);
     }
   };
+
+  const updateCurrentNode = () => {
+    if (!currentModel || !cursorInfo || !documentAST) return;
+    const findNodeAtCursor = (node: LatexNode): LatexNode | null => {
+      if (!node || !node.location) return null;
+      const { start, end } = node.location;
+      // Check if the cursor is within this node
+      if (start.offset <= cursorInfo.offset && cursorInfo.offset < end.offset) {
+        // If the node has children, check if any child contains the cursor
+        if ("content" in node && Array.isArray(node.content)) {
+          for (const child of node.content) {
+            if (!child) continue;
+            const childNode = findNodeAtCursor(child);
+            if (childNode) return childNode;
+          }
+        }
+        // Similarly check args if present
+        if ("args" in node && Array.isArray(node.args)) {
+          for (const arg of node.args) {
+            if (!arg) continue;
+            const argNode = findNodeAtCursor(arg);
+            if (argNode) return argNode;
+          }
+        }
+        // If no children contain the cursor, this is the most specific node
+        return node;
+      }
+      return null;
+    }
+    let currentNode = null;
+    for (const node of documentAST.content) {
+      currentNode = findNodeAtCursor(node);
+      if (currentNode) break;
+    }
+    setCurrentNode(currentNode);
+  };
+
+  const updateDocumentAST = () => {
+    if (!currentModel) return;
+    setDocumentAST(parseLatex(currentModel.getValue()));
+  };
+
+  useEffect(() => {
+    updateCurrentNode();
+  }, [cursorInfo, documentAST]);
 
   // Process content changes - now publicly accessible
   const processEditorContentChanges = (
@@ -161,7 +207,6 @@ export const LatexContextProvider: React.FC<LatexContextProviderProps> = ({
     // Update edit tracker
     if (editTrackerRef.current) {
       editTrackerRef.current.processEditorContentChanges(event);
-      console.log("[LatexContext] Editor content changes processed");
     }
   };
 
@@ -170,9 +215,11 @@ export const LatexContextProvider: React.FC<LatexContextProviderProps> = ({
     setCurrentModel,
     setCurrentEditor,
     getCurrentDocument: () => {
-      if (!currentModel) return "";
+      if (!currentModel) return undefined;
       return currentModel.getValue();
     },
+    getCurrentDocumentAST: () => documentAST,
+    getCurrentNode: () => currentNode,
     getCurrentCursorInfo: () => cursorInfo,
     getVisibleRangeInfo: () => visibleRange,
     getRecentEditsSummary: () => {
@@ -181,6 +228,7 @@ export const LatexContextProvider: React.FC<LatexContextProviderProps> = ({
     },
     updateCursorInfo,
     updateVisibleRange,
+    updateDocumentAST,
     processEditorContentChanges,
   };
 

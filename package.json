@@ -16,6 +16,7 @@
     "@types/react-dom": "^19.0.4",
     "electron-is-dev": "^3.0.1",
     "electron-store": "^10.0.1",
+    "latex-utensils": "^6.2.0",
     "mathjax": "^3.2.2",
     "openai": "^4.90.0",
     "react": "^19.1.0",

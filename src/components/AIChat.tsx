@@ -103,6 +103,7 @@ const AIChat: React.FC<AIChatProps> = ({ onClose }) => {
 
     // Get context information from latexContext using the ref
     const documentContent = latexContextRef.current.getCurrentDocument();
+    const documentAST = latexContextRef.current.getCurrentDocumentAST();
     const cursorInfo = latexContextRef.current.getCurrentCursorInfo();
     const visibleRangeInfo = latexContextRef.current.getVisibleRangeInfo();
     const recentEdits = latexContextRef.current.getRecentEditsSummary();
@@ -146,14 +147,12 @@ const AIChat: React.FC<AIChatProps> = ({ onClose }) => {
         question: inputValue,
         model: selectedModel, // Pass the selected model
         context: {
+          previousMessages: previousMessages.slice(0, -1), // Exclude the message we just added
           documentContent: documentContent,
           cursorOffset: cursorInfo?.offset || 0,
           visibleContent: visibleRangeInfo?.content,
           recentEdits: recentEdits,
           currentWord: cursorInfo?.wordAtPosition,
-        },
-        chatContext: {
-          previousMessages: previousMessages.slice(0, -1), // Exclude the message we just added
         },
       });
 

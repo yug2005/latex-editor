@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import { latexParser } from "latex-utensils";
+import { LatexNode } from "../utils/latexAST";
 import { EditChange } from "../utils/editGroupsTracking";
 
 // Define available OpenAI models
@@ -29,6 +31,8 @@ console.log(
 
 // Additional context information type
 export interface LatexContext {
+  currentNode: LatexNode;
+  documentAST: latexParser.LatexAst;
   documentContent: string;
   cursorOffset: number;
   prefix?: string; // Text before cursor on the current line
@@ -44,83 +48,83 @@ export interface AISuggestionOptions {
   temperature?: number;
 }
 
-/**
- * Analyzes the context to determine if we're in LaTeX command mode or prose/paragraph mode
- */
-const analyzeContext = (
-  content: string,
-  cursorOffset: number
-): {
-  isCommand: boolean;
-  contextType: "math" | "command" | "prose" | "environment";
-} => {
-  // Get line and character before cursor
-  const beforeCursor = content.substring(0, cursorOffset);
-  const lines = beforeCursor.split("\n");
-  const currentLine = lines[lines.length - 1] || "";
+export enum LatexContextType {
+  PARAGRAPH = "paragraph", // Regular text
+  SECTION = "section", // Inside a section
+  SUBSECTION = "subsection", // Inside a subsection
+  SUBSUBSECTION = "subsubsection", // Inside a subsubsection
+  MATH_INLINE = "math.inline", // Inline math ($...$)
+  MATH_DISPLAY = "math.display", // Display math ($$...$$)
+  MATH_ENVIRONMENT = "math.environment", // Math environments (align, equation, etc)
+  ITEMIZE = "itemize", // Itemize environment
+  ENUMERATE = "enumerate", // Enumerate environment
+  TABLE = "table", // Table environment
+  FIGURE = "figure", // Figure environment
+  COMMAND = "command", // Inside a LaTeX command
+  COMMENT = "comment", // Inside a comment
+  UNKNOWN = "unknown", // Couldn't determine the context
+}
 
-  // Check if we're in a math environment
-  const mathStart = Math.max(
-    beforeCursor.lastIndexOf("$$"),
-    beforeCursor.lastIndexOf("\\begin{equation}"),
-    beforeCursor.lastIndexOf("\\begin{align}"),
-    beforeCursor.lastIndexOf("$")
-  );
-
-  const mathEnd = Math.max(
-    beforeCursor.lastIndexOf("$$", mathStart - 1),
-    beforeCursor.lastIndexOf("\\end{equation}"),
-    beforeCursor.lastIndexOf("\\end{align}"),
-    beforeCursor.lastIndexOf("$", mathStart - 1)
-  );
-
-  const inMathEnv = mathStart > mathEnd;
-
-  // Check if we're inside a command
-  const lastBackslash = currentLine.lastIndexOf("\\");
-  const insideCommand =
-    lastBackslash >= 0 &&
-    !currentLine.substring(lastBackslash).includes("{") &&
-    !currentLine.substring(lastBackslash).includes(" ");
-
-  // Check if we're inside a LaTeX environment content
-  const environmentStart = beforeCursor.lastIndexOf("\\begin{");
-  const environmentEnd = beforeCursor.lastIndexOf("\\end{");
-  const inEnvironment = environmentStart > environmentEnd;
-
-  // Let's see if there's a paragraph of text
-  const lastFewLines = lines.slice(-5).join("\n");
-  const hasParagraphText =
-    !lastFewLines.includes("\\") ||
-    (lastFewLines.split(/[^\\]/).length - 1) / lastFewLines.length < 0.2; // Less than 20% LaTeX commands
-
-  let contextType: "math" | "command" | "prose" | "environment";
-  let isCommand: boolean;
-
-  if (insideCommand) {
-    contextType = "command";
-    isCommand = true;
-  } else if (inMathEnv) {
-    contextType = "math";
-    isCommand = true;
-  } else if (inEnvironment && !hasParagraphText) {
-    contextType = "environment";
-    isCommand = false;
-  } else {
-    contextType = "prose";
-    isCommand = false;
+// Determine context type based on the node and its ancestors
+const determineContextType = (node: LatexNode): LatexContextType => {
+  if (!node) return LatexContextType.UNKNOWN;
+  // Check for math environments
+  if (node.kind === "inlineMath") {
+    return LatexContextType.MATH_INLINE;
   }
-
-  console.log("[AIService] Analyzed context:", {
-    contextType,
-    isCommand,
-    inMathEnv,
-    insideCommand,
-    inEnvironment,
-    hasParagraphText,
-  });
-
-  return { isCommand, contextType };
+  if (node.kind === "displayMath") {
+    return LatexContextType.MATH_DISPLAY;
+  }
+  if (
+    node.kind &&
+    typeof node.kind === "string" &&
+    node.kind.startsWith("env.math.")
+  ) {
+    return LatexContextType.MATH_ENVIRONMENT;
+  }
+  // Check for section, subsection, subsubsection
+  if (node.kind === "section") {
+    return LatexContextType.SECTION;
+  }
+  if (node.kind === "subsection") {
+    return LatexContextType.SUBSECTION;
+  }
+  if (node.kind === "subsubsection") {
+    return LatexContextType.SUBSUBSECTION;
+  }
+  // Check for command
+  if (node.kind === "command") {
+    return LatexContextType.COMMAND;
+  }
+  // Check for environments
+  if (
+    node.kind === "env" ||
+    (node.kind &&
+      typeof node.kind === "string" &&
+      node.kind.startsWith("env."))
+  ) {
+    if ("name" in node && typeof node.name === "string") {
+      const envName = String(node.name).toLowerCase();
+      switch (envName) {
+        case "itemize":
+          return LatexContextType.ITEMIZE;
+        case "enumerate":
+          return LatexContextType.ENUMERATE;
+        case "table":
+        case "tabular":
+          return LatexContextType.TABLE;
+        case "figure":
+          return LatexContextType.FIGURE;
+        // Add other specific environments as needed
+      }
+    }
+  }
+  // If we haven't determined the context and the node has a parent, check the parent
+  if (node.parent) {
+    return determineContextType(node.parent);
+  }
+  // Default to paragraph if we couldn't determine a more specific context
+  return LatexContextType.PARAGRAPH;
 };
 
 /**
@@ -135,32 +139,21 @@ export const getLatexSuggestions = async (
   );
 
   const { context, maxTokens = 150, temperature = 0.7 } = options;
-  const { documentContent, cursorOffset, prefix } = context;
+  const { currentNode, documentAST, documentContent, cursorOffset, prefix } = context;
+  
+  console.log("[AIService] Current node:", currentNode);
+  console.log("[AIService] Document AST:", documentAST);
 
   // Get text before and after cursor to provide complete context
   const contextBeforeCursor = documentContent.substring(0, cursorOffset);
   const contextAfterCursor = documentContent.substring(cursorOffset);
 
   // Analyze the context to determine what type of suggestion to provide
-  const contextAnalysis = analyzeContext(documentContent, cursorOffset);
+  const contextType = determineContextType(currentNode);
+  console.log("[AIService] Context Type:", contextType);
 
-  // Set up appropriate system prompt based on context
-  let systemPrompt = "";
-  if (contextAnalysis.contextType === "command") {
-    systemPrompt = `You are a LaTeX expert assistant that provides command completions. 
-When the user is writing a LaTeX command (after a backslash), provide only the command name without explanations or the backslash.`;
-  } else if (contextAnalysis.contextType === "math") {
-    systemPrompt = `You are a LaTeX math expert. Complete the mathematical expression started by the user.
-Provide only the math LaTeX code to continue, no explanations.`;
-  } else if (contextAnalysis.contextType === "environment") {
-    systemPrompt = `You are a LaTeX environment expert. Complete the content within this LaTeX environment.
-Focus on providing appropriate content for this specific environment type.`;
-  } else {
-    // Prose mode
-    systemPrompt = `You are a LaTeX writing assistant helping complete paragraphs and prose.
-For text paragraphs (not LaTeX commands), provide thoughtful, medium to long-length completions.
-For text, focus on continuing the user's writing style, arguments, and thought process.`;
-  }
+  let systemPrompt =
+    "You are a LaTeX expert assistant. Based on the context and the cursor position indicated by [CURSOR], provide a LaTeX completion for the user.";
 
   try {
     console.log(
@@ -192,10 +185,8 @@ ${contextBeforeCursor}[CURSOR]${contextAfterCursor}`;
           content: userMessage,
         },
       ],
-      max_tokens:
-        contextAnalysis.contextType === "prose" ? maxTokens * 2 : maxTokens,
-      temperature:
-        contextAnalysis.contextType === "command" ? 0.2 : temperature,
+      max_tokens: maxTokens,
+      temperature: temperature,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0.3,
@@ -215,14 +206,21 @@ ${contextBeforeCursor}[CURSOR]${contextAfterCursor}`;
   }
 };
 
-export interface ChatContext {
+export interface AIChatContext {
   previousMessages?: Array<{ role: "user" | "assistant"; content: string }>;
+  documentAST?: latexParser.LatexAst;
+  documentContent?: string;
+  cursorOffset?: number;
+  prefix?: string; // Text before cursor on the current line
+  visibleContent?: string;
+  recentEdits?: EditChange[];
+  currentWord?: string;
+  surroundingEnvironment?: string;
 }
 
 export interface AIQuestionOptions {
   question: string;
-  context: LatexContext;
-  chatContext: ChatContext;
+  context: AIChatContext;
   maxTokens?: number;
   temperature?: number;
   model?: AIModelValue;
@@ -237,14 +235,15 @@ export const askAIQuestion = async (
   console.log("[AIService] askAIQuestion called with options:", {
     question: options.question,
     context: options.context,
-    hasHistory: options.chatContext.previousMessages && options.chatContext.previousMessages.length > 0,
+    hasHistory:
+      options.context.previousMessages &&
+      options.context.previousMessages.length > 0,
     model: options.model || "gpt-4o",
   });
 
   const {
     question,
     context,
-    chatContext,
     maxTokens = 500,
     temperature = 0.7,
     model = "gpt-4o", // Default to GPT-4o
@@ -253,7 +252,7 @@ export const askAIQuestion = async (
 
   // Extract the context around cursor position if provided
   let documentContext = documentContent;
-  if (cursorOffset !== undefined) {
+  if (documentContent && cursorOffset !== undefined) {
     // Get text before and after cursor to provide focused context
     const startPosition = Math.max(0, cursorOffset - 2000);
     const endPosition = Math.min(documentContent.length, cursorOffset + 2000);
@@ -288,9 +287,9 @@ Focus on providing practical, usable LaTeX code when appropriate.`;
     ];
 
     // Add previous conversation messages if they exist
-    if (chatContext.previousMessages && chatContext.previousMessages.length > 0) {
+    if (context.previousMessages && context.previousMessages.length > 0) {
       // Add previous messages to maintain conversation context
-      messages.push(...(chatContext.previousMessages as ChatMessage[]));
+      messages.push(...(context.previousMessages as ChatMessage[]));
     }
 
     // Prepare the context message with document content

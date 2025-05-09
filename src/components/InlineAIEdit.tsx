@@ -47,9 +47,14 @@ const InlineAIEdit = ({ editor }: InlineAIEditProps) => {
     isFetchingSuggestionRef.current = true;
     try {
       const documentContent = latexContextRef.current.getCurrentDocument();
-
+      const documentAST = latexContextRef.current.getCurrentDocumentAST();
+      const currentNode = latexContextRef.current.getCurrentNode();
       const cursorInfo = latexContextRef.current.getCurrentCursorInfo();
-      if (!cursorInfo) return;
+      if (!documentContent || !documentAST || !currentNode || !cursorInfo) return;
+      if (currentNode.kind === "text.string") {
+        console.log("[InlineAIEdit] Current node is a text string, skipping");
+        return;
+      }
 
       const cursorOffset = cursorInfo.offset;
       const lineContent = cursorInfo.lineContent;
@@ -66,6 +71,8 @@ const InlineAIEdit = ({ editor }: InlineAIEditProps) => {
       const start = new Date();
       const suggestion = await getLatexSuggestions({
         context: {
+          currentNode,
+          documentAST,
           documentContent,
           cursorOffset,
           prefix,
@@ -129,6 +136,7 @@ const InlineAIEdit = ({ editor }: InlineAIEditProps) => {
       event: monaco.editor.IModelContentChangedEvent
     ) => {
       latexContextRef.current.updateVisibleRange();
+      latexContextRef.current.updateDocumentAST();
       latexContextRef.current.processEditorContentChanges(event);
     };
 
